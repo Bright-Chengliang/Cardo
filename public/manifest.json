@@ -1,7 +1,7 @@
 {
-  "name": "Cardo · Deep Work & Energy Ritual",
+  "name": "Cardo · 单任务专注与时间校准小工具",
   "short_name": "Cardo",
-  "description": "Cardo（卡尔多 / 枢轴）— 基于实证科学的精力管理与深度工作注意力辅助系统 (Cartesian Architecture)",
+  "description": "一个轻量的单任务专注与时间校准小工具，支持 Agent 本地代码检索、历史耗时参考与局域网副屏打卡。",
   "start_url": "/mobile",
   "display": "standalone",
   "background_color": "#EDE8E0",

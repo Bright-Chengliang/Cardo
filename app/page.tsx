@@ -73,13 +73,13 @@ export default function HomePage() {
           <div>
             <div className="cartesian-label mb-2 flex items-center gap-2">
               <span className="w-1.5 h-1.5 bg-cartesian-ink rounded-none inline-block"></span>
-              <span>Cognitive Architecture · Deep Work Ritual</span>
+              <span>Single Task & Time Calibration</span>
             </div>
             <h1 className="font-display text-h1 font-normal tracking-tight text-cartesian-ink">
               Cardo
             </h1>
             <p className="font-body text-cartesian-muted text-small mt-1.5 max-w-md">
-              基于实证科学的注意力保护与单任务深度工作执行系统
+              面向开发者的单任务专注与时间预估校准小工具
             </p>
           </div>
 

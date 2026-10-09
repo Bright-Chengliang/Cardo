@@ -218,7 +218,7 @@ export default function HistoryPage() {
               History & Calibration
             </h1>
             <p className="font-body text-cartesian-muted text-small mt-1.5 max-w-md">
-              时间感知收敛度、专注工作存档与历史读档全集
+              任务用时偏差复盘、历史专注存档与随时读档恢复
             </p>
           </div>
           <div className="flex items-center gap-3">

@@ -25,8 +25,8 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: 'Cardo · Deep Work & Energy Ritual',
-  description: 'Cardo（卡尔多 / 枢轴）— 基于实证科学的注意力保护与单任务深度工作执行系统',
+  title: 'Cardo · 单任务专注与时间校准小工具',
+  description: '一个轻量的单任务专注与时间校准小工具，支持 Agent 代码感知拆解、历史耗时参考与局域网副屏打卡。',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
