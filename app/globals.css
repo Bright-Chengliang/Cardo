@@ -1,0 +1,252 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Cartesian Visual Design System (Museum-Catalog / Architectural Monograph)
+   Based on beautiful-html-templates / cartesian design system
+   ========================================================================== */
+
+:root {
+  --bg-primary: #ede8e0;
+  --bg-secondary: #e2dbd1;
+  --text-primary: #1a1a1a;
+  --text-secondary: #5a5a5a;
+  --accent: #8a8178;
+  --line: #b8b0a4;
+  --line-faint: rgba(184, 176, 164, 0.4);
+  --white-overlay: rgba(255, 255, 255, 0.45);
+  --font-display: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', 'Noto Sans SC', system-ui, sans-serif;
+  --font-body: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', 'Noto Sans SC', system-ui, sans-serif;
+  --font-timer: var(--font-playfair), 'Playfair Display', Georgia, serif;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  min-height: 100vh;
+}
+
+/* 绘图背景质感与几何装饰层 */
+.cartesian-drafting-bg {
+  position: relative;
+  background-color: var(--bg-primary);
+}
+
+/* 几何圆规圈 (Geometric Drafting Rings) */
+.geo-decoration {
+  position: absolute;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+}
+
+.geo-decoration::before {
+  content: '';
+  position: absolute;
+  top: 10%;
+  left: 10%;
+  width: 80%;
+  height: 80%;
+  border: 1px dashed var(--line);
+  border-radius: 50%;
+}
+
+.geo-ring-lg {
+  position: absolute;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.25;
+  z-index: 0;
+}
+
+.geo-ring-lg::before {
+  content: '';
+  position: absolute;
+  top: 15%;
+  left: 15%;
+  width: 70%;
+  height: 70%;
+  border: 1px dashed var(--line);
+  border-radius: 50%;
+}
+
+/* 硫酸纸卡片 (Tracing-paper Card) */
+.cartesian-card {
+  background: var(--white-overlay);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line);
+  border-radius: 0px;
+}
+
+.cartesian-card-solid {
+  background: #F8F5F0;
+  border: 1px solid var(--line);
+  border-radius: 0px;
+}
+
+/* 1px 发丝分割线 */
+.cartesian-divider {
+  height: 1px;
+  background-color: var(--line);
+  width: 100%;
+}
+
+.cartesian-divider-faint {
+  height: 1px;
+  background-color: var(--line-faint);
+  width: 100%;
+}
+
+.horizontal-accent {
+  width: 120px;
+  height: 1px;
+  background-color: var(--text-primary);
+}
+
+/* 标签通用格式 (Uppercase 2-3px tracking) */
+.cartesian-label {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.cartesian-micro {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* 极简输入框 (1px 建筑绘图线条) */
+input[type="text"],
+input[type="number"],
+input[type="password"],
+textarea,
+select {
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid var(--line);
+  color: var(--text-primary);
+  border-radius: 0px;
+  transition: all 180ms ease;
+  font-family: var(--font-body);
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  background: #FFFFFF;
+  border-color: var(--text-primary);
+  box-shadow: none;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #8A8178;
+  opacity: 0.7;
+}
+
+/* 建筑志风格按钮 (1px 线条与反相微交互) */
+button {
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-cartesian-primary {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  border: 1px solid var(--text-primary);
+  font-family: var(--font-body);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.btn-cartesian-primary:hover {
+  background: #333333;
+  border-color: #333333;
+}
+
+.btn-cartesian-outline {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--line);
+  font-family: var(--font-body);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.btn-cartesian-outline:hover {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  border-color: var(--text-primary);
+}
+
+/* 平滑淡入 */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 300ms ease-out;
+}
+
+/* 全局极简高雅滚动条 (Single Unified Scrollbar) */
+html {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(184, 176, 164, 0.5) transparent;
+}
+
+body {
+  overflow: visible;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(184, 176, 164, 0.45);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(138, 129, 120, 0.75);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 2px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Cardo · Deep Work & Energy Ritual",
+  "short_name": "Cardo",
+  "description": "Cardo（卡尔多 / 枢轴）— 基于实证科学的精力管理与深度工作注意力辅助系统 (Cartesian Architecture)",
+  "start_url": "/mobile",
+  "display": "standalone",
+  "background_color": "#EDE8E0",
+  "theme_color": "#EDE8E0",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

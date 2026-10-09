@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Cartesian Warm Stone Canvas -->
+  <rect width="512" height="512" fill="#EDE8E0"/>
+  
+  <!-- Outer Drafting Ring (Pale Taupe 1.5px hairline) -->
+  <circle cx="256" cy="256" r="210" fill="none" stroke="#B8B0A4" stroke-width="4"/>
+  
+  <!-- Dashed Compass Arc (Architectural Guide) -->
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#B8B0A4" stroke-width="3" stroke-dasharray="8 8"/>
+  
+  <!-- Crosshair Guides (Hairline 1px) -->
+  <line x1="256" y1="36" x2="256" y2="476" stroke="#B8B0A4" stroke-width="2" stroke-opacity="0.6"/>
+  <line x1="36" y1="256" x2="476" y2="256" stroke="#B8B0A4" stroke-width="2" stroke-opacity="0.6"/>
+  
+  <!-- Inner Subtle Disc -->
+  <circle cx="256" cy="256" r="100" fill="#E2DBD1" stroke="#B8B0A4" stroke-width="3"/>
+  
+  <!-- Core Ink Focal Mark -->
+  <circle cx="256" cy="256" r="42" fill="#1A1A1A"/>
+  
+  <!-- Center Pin Accent -->
+  <circle cx="256" cy="256" r="10" fill="#EDE8E0"/>
+</svg>
