@@ -1,78 +1,65 @@
-# Cardo · 深度工作与精力管理系统 (Cartesian Architecture)
+# Cardo · 深度工作与精力管理系统
 
-> **Cardo（卡尔多 / 枢轴）** — 来源于罗马古建筑与笛卡尔网格中的南北主轴（Cardo Maximus），象征在注意力碎片化的时代，为心智建立起一道笔直、纯净、免受侵扰的**单通道工作枢轴**。
+> **Cardo（卡尔多 / 枢轴）** — 来源于罗马古建筑规划中的核心主轴（Cardo Maximus），旨在注意力碎片化的时代，为心智建立一道免受侵扰的**单通道工作枢轴**。
 >
-> 结合 **Cartesian 建筑志与博物馆图录美学**，基于实证认知科学、注意力恢复理论（ART）与精力管理实证研究打造，彻底阻断**空档内耗反刍**、**多任务注意力残留**与**时间感知过度乐观**。
+> 结合实证认知科学、注意力恢复理论（ART）与精力管理实证研究，彻底解决 **缺乏即时下一任务清单**、**等待空档触发内耗反刍** 与 **时间感知过度乐观** 三大核心痛点。
 
 ---
 
-## 📸 系统视觉与架构概览 (Gallery & Highlights)
+## 🎯 为什么需要 Cardo？（解决三大核心痛点）
 
-### 1. 规划阶段与实证精力管理 (Planning Architecture)
-开阔的暖石画布与单发丝极简表单，集成实证精力法则横幅、4 步就绪仪式与多模态智能拆解。
-![Cardo Planning Architecture](./docs/assets/cardo-planning.png)
+在日常高强度脑力与工程研发工作中，开发者和研究者最常见的效率损耗并非来自偷懒，而是源于大脑的工作记忆瓶颈与认知损耗：
 
-### 2. 单通道深度执行与 Didone 艺术计时 (Execution Channel)
-去除所有冗余封闭矩形，聚焦当前单一原子任务，提供大号 Didone 衬线艺术计时器、即时暂存读档与反刍阻断兜底通道。
-![Cardo Execution Channel](./docs/assets/cardo-execution.png)
-
-### 3. 时间感知校准与历史复盘分析 (History & Calibration)
-多维度准确率收敛趋势、工时统计、多 Tab 读档中枢与任意历史轮次的一键恢复。
-![Cardo History & Calibration](./docs/assets/cardo-history.png)
-
-### 4. 移动端副屏实时协同 (Mobile Live Companion)
-局域网一键直连，手机作为桌面端的触感秒表与打卡副屏，支持 PWA 全屏沉浸与触感震动反馈。
-<div align="center">
-  <img src="./docs/assets/cardo-mobile.png" width="360" alt="Cardo Mobile Companion" />
-</div>
+1. **痛点一：等待与卡壳时的「空档内耗反刍」**
+   - *现象*：等待编译、跑测试或遇到技术卡壳时，大脑容易本能地拿起手机刷社交媒体，或者陷入「焦虑发呆」的空转反刍；被打断后平均需要 **25 分钟** 才能重新找回深度心流。
+   - *Cardo 解法*：强制设置 **Fallback Routine（兜底任务）**。卡壳或等待时一键切换至预设的低认知整理活（如读一段文献、整理接口定义、清洗数据），阻断无意识分心。
+2. **痛点二：缺乏具体可执行的「即时下一任务清单」**
+   - *现象*：总目标过于宏大（如「写完某系统架构」），中途不知所措，导致拖延与反复切换上下文（Attention Residue 注意力残留）。
+   - *Cardo 解法*：微积分式原子化拆解（$\le 35$ 分钟单任务），前置 **4 步专注就绪仪式**（物理隔离、通知切断、状态补给、通道锁定），独占当前执行通道。
+3. **痛点三：时间规划的「过度乐观与无感失控」**
+   - *现象*：永远觉得 10 分钟能搞定，实际耗费两小时，缺乏可量化闭环。
+   - *Cardo 解法*：自动统计每个原子任务预估 vs 实际用时，生成时间感知收敛度与准确率走势，驱动时间预估能力的飞轮式自进化。
 
 ---
 
-## 🏛️ Cartesian 视觉设计系统规范
+## 📸 功能视图 (Feature Showcase)
 
-本项目统一采用 **Cartesian**（笛卡尔/建筑志与博物馆图录）极简设计系统：
+| 规划架构 (Planning) | 执行通道 (Execution) |
+| :---: | :---: |
+| ![Planning Architecture](./docs/assets/cardo-planning.png) | ![Execution Channel](./docs/assets/cardo-execution.png) |
+| **原子化拆解 · 实证精力法则 · 4 步就绪仪式** | **单通道聚焦 · Didone 艺术计时 · 兜底任务切换** |
 
-- **色彩哲学 (Color Palette)**：
-  - **暖石画布**：`#EDE8E0`（`bg-cartesian-bg`），温暖自然的哑光暖灰石质纸感。
-  - **浅石辅助色**：`#E2DBD1`（`bg-cartesian-bg-subtle`），用于微高亮与状态容器。
-  - **主墨水色**：`#1A1A1A`（`text-cartesian-ink`），典雅致密的工学碳黑。
-  - **次级灰度**：`#5A5A5A`（`text-cartesian-muted`）与暖灰标线 `#8A8178`（`text-cartesian-accent`）。
-  - **矿物浅绿重音**：`bg-[#EAF1EB]` 与墨绿条 `#3B6647`，用于突出实证精力法则。
-- **排版与字体 (Typography)**：
-  - **中文与通用英文**：统一采用现代中西文混排体系（`Inter + PingFang SC / Microsoft YaHei / 微软雅黑 / Noto Sans SC / system-ui`），杜绝中英文混排撕裂。
-  - **数字艺术计时器**：纯数字大时钟采用 `Playfair Display`（Didone 衬线体），突出时间的庄重与仪式感。
-  - **眉标与元数据**：全大写 + `letter-spacing: 2px ~ 3px` 字符微间距。
-- **几何与空间秩序 (Geometry & Layout)**：
-  - **开阔去框线化 (No Bounding Boxes)**：消除传统卡片的厚重封闭黑边，内容直接在石色画布上呼吸。
-  - **1px 发丝单横线 (Hairline System)**：功能分区与任务列表间仅采用 `1px` 极细横线（`border-b border-cartesian-line/30`）区隔。
-  - **建筑圆规虚实圆环**：极简罗盘圆环装饰（`.geo-decoration`），呼应笛卡尔几何制图。
+| 时间感知校准 (Calibration & History) | 移动端副屏协同 (Mobile Companion) |
+| :---: | :---: |
+| ![History & Calibration](./docs/assets/cardo-history.png) | <img src="./docs/assets/cardo-mobile.png" width="300" alt="Mobile Companion" /> |
+| **预估偏差复盘 · 准确率收敛分析 · 随时读档** | **局域网 Wi-Fi 直连 · 触感震动打卡 · PWA 支持** |
 
 ---
 
-## ⚡ 核心设计与功能闭环
+## ⚡ 核心功能体系
 
 ### 1. 深度工作三阶段闭环 (Planning · Execution · Review)
 - **阶段一：规划架构 (Planning Architecture)**
-  - 任务原子化微积分：严格将宏观目标拆解为 $\le 35$ 分钟的可验证单原子任务。
-  - 兜底任务（Fallback Routine）：预设卡壳或等待时的低认知阻断活动，避免反刍思维与刷手机。
-  - 智能读档抽屉：检测未完成轮次，支持一键「⚡ 继续读档执行」或「📝 载入到表单」。
+  - 任务原子化微积分：宏观目标拆解为 $\le 35$ 分钟的可执行单原子任务。
+  - 兜底任务（Fallback Routine）：预设卡壳/等待时的低认知阻断动作。
+  - 智能读档恢复：自动感知未完成轮次，支持一键「⚡ 继续读档执行」或「📝 载入到表单」。
   - **4 步专注就绪仪式 (Pre-Flight Protocols)**：
-    1. **物理空间净化**：手机移出视线范围、桌面仅留必需工具、佩戴降噪耳塞。
+    1. **物理空间净化**：手机移出视线范围、桌面清理、佩戴降噪耳塞。
     2. **数字干扰切断**：关闭通讯软件与桌面通知、开启单窗口全屏。
     3. **生理状态补给**：准备充足饮水、确认室温与自然光照。
-    4. **认知通道锁定**：明确第一步物理级可执行动作，锁定单任务隔离通道。
+    4. **认知通道锁定**：明确第一步物理级可执行动作，锁定单任务通道。
 
 - **阶段二：执行通道 (Execution Channel)**
   - 实时自适应计时器与「↺ 重置计时（Reset Timer）」支持。
   - 极简专注沉浸模式（**Zen Mode**，快捷键 `Alt + Z`）。
-  - 键盘全流程盲操（`Ctrl + Enter` 标记完成、`Alt + F` 切换兜底任务）。
-  - 基于 Web Audio API 动态合成的柔和双音提示音（零网络外部音频依赖）。
-  - 随时点击「⏸ 暂存读档」，安全保存现场并退回主页。
+  - 全键盘盲操流（`Ctrl + Enter` 标记完成、`Alt + F` 切换兜底任务）。
+  - 基于 Web Audio API 动态合成的柔和双音提示音（零外部资源依赖）。
+  - 随时「⏸ 暂存读档」，安全保存现场并退回主页。
 
 - **阶段三：反思与时间感知校准 (Reflection & Flywheel)**
-  - 预估耗时 vs 实际耗时逐项明细与偏差比例。
-  - 准确率量化计算（$\pm 20\%$ 判定为准确）。
-  - 时间感知智能校准建议，驱动时间感知能力飞轮式进化。
+  - 预估耗时 vs 实际耗时逐项明细对比与偏差百分比。
+  - 准确率量化分析（$\pm 20\%$ 判定为准确）。
+  - 时间感知智能校准建议，驱动时间预估能力持续进化。
 
 ---
 
@@ -86,7 +73,7 @@
 
 ---
 
-### 3. 局域网跨设备副屏实时同步
+### 3. 局域网跨设备副屏实时协同 (100% 离线安全)
 - **专属路由**：`/mobile`
 - **局域网 Wi-Fi 直连**：自动嗅探本机内网 IP（`/api/network/ip`），手机扫码即连或直接保存书签。
 - **打卡触感震动反馈**：手机点击任务完成时触发硬件级触觉振动（`navigator.vibrate`），实时双向推送到桌面端。
@@ -113,7 +100,7 @@
 
 ```bash
 # 1. 克隆代码仓库
-git clone https://github.com/your-username/Cardo.git
+git clone https://github.com/Bright-Chengliang/Cardo.git
 cd Cardo
 
 # 2. 安装依赖
