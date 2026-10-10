@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Session } from '@/lib/types';
-import { useTimer } from '@/lib/hooks/useTimer';
+import { useElapsedTimer } from '@/lib/hooks/useTimer';
 import { ENERGY_TIPS, FOCUS_PREFLIGHT_STEPS } from '@/lib/energy-tips';
 import Link from 'next/link';
 
@@ -45,7 +45,11 @@ export default function MobilePage() {
   }, [fetchSession]);
 
   const currentTask = session?.tasks?.find((t) => t.id === session.currentTaskId);
-  const { formattedTime } = useTimer(currentTask?.startedAt);
+  const { formattedTime } = useElapsedTimer(
+    session?.elapsedSeconds || 0,
+    !!session && session.status === 'executing',
+    session?.lastResumedAt
+  );
 
   const completedCount = session?.tasks?.filter((t) => t.status === 'completed').length || 0;
   const totalCount = session?.tasks?.length || 0;
@@ -56,8 +60,8 @@ export default function MobilePage() {
     setTipIndex((prev) => (prev + 1) % ENERGY_TIPS.length);
   };
 
-  // 标记任务完成 (带触感震动反馈与提示音)
-  const handleComplete = async () => {
+  // 标记任务完成（可指定任意任务，带触感震动反馈）
+  const handleComplete = async (taskId?: string) => {
     if (completeLoading || !session) return;
     setCompleteLoading(true);
 
@@ -70,7 +74,11 @@ export default function MobilePage() {
     }
 
     try {
-      const res = await fetch('/api/session/complete', { method: 'POST' });
+      const res = await fetch('/api/session/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(taskId ? { taskId } : {}),
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.session) {
@@ -298,18 +306,21 @@ export default function MobilePage() {
             </h3>
 
             <div className="flex items-baseline justify-between border-t border-cartesian-line pt-3">
-              <span className="font-serif text-5xl font-normal text-cartesian-ink tracking-tight">
-                {formattedTime}
-              </span>
+              <div>
+                <span className="font-serif text-5xl font-normal text-cartesian-ink tracking-tight">
+                  {formattedTime}
+                </span>
+                <span className="cartesian-micro text-cartesian-muted block mt-1">
+                  Total Focus Time · 本轮总用时
+                </span>
+              </div>
               <div className="text-right">
                 <span className="cartesian-micro text-cartesian-muted block font-mono">
                   Est. {currentTask.estimatedMinutes}m
                 </span>
-                {currentTask.startedAt && (
-                  <span className="cartesian-micro text-cartesian-accent font-mono">
-                    Elapsed {Math.floor((Date.now() - new Date(currentTask.startedAt).getTime()) / 60000)}m
-                  </span>
-                )}
+                <span className="cartesian-micro text-cartesian-accent font-mono">
+                  Paused Time Excluded
+                </span>
               </div>
             </div>
           </div>
@@ -351,9 +362,16 @@ export default function MobilePage() {
                 .map((t) => (
                   <div
                     key={t.id}
-                    className="p-2.5 bg-white/50 border border-cartesian-line flex justify-between items-center"
+                    className="p-2.5 bg-white/50 flex justify-between items-center gap-2"
                   >
-                    <span className="font-body text-xs text-cartesian-ink line-clamp-1 flex-1 pr-2">
+                    <button
+                      type="button"
+                      onClick={() => handleComplete(t.id)}
+                      disabled={completeLoading}
+                      className="w-6 h-6 flex items-center justify-center border border-cartesian-line/60 bg-white text-cartesian-muted hover:text-white hover:bg-cartesian-ink hover:border-cartesian-ink transition-colors text-xs shrink-0 disabled:opacity-40"
+                      title="顺手完成该任务"
+                    />
+                    <span className="font-body text-xs text-cartesian-ink line-clamp-1 flex-1">
                       {t.title}
                     </span>
                     <span className="cartesian-micro text-cartesian-muted shrink-0">
@@ -370,7 +388,7 @@ export default function MobilePage() {
       <div className="sticky bottom-0 pt-2">
         <button
           type="button"
-          onClick={handleComplete}
+          onClick={() => handleComplete()}
           disabled={completeLoading}
           className="w-full py-4 btn-cartesian-primary text-xs flex items-center justify-center gap-2 disabled:opacity-50"
         >

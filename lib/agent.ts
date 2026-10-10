@@ -1,6 +1,9 @@
 // lib/agent.ts - LLM Agent 辅助拆解与多模态文件/视觉 Tooling 探索体系
 
 import { saveConfig, getConfig, getSessions } from './storage';
+import { ChatMessage } from './types';
+
+export type { ChatMessage } from './types';
 
 export type ResponseFormat = 'openai' | 'anthropic';
 
@@ -19,6 +22,7 @@ export interface ModelInfo {
 }
 
 export interface SuggestedTask {
+  id?: string;
   title: string;
   estimatedMinutes: number;
   historyRef?: {
@@ -663,18 +667,60 @@ function parseJsonLoose<T>(text: string): T | null {
 
 // ---------- 对话微调拆解 (F9.4) ----------
 
-export interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
 export interface RefineResult {
   reply: string;
   tasks?: SuggestedTask[];
 }
 
-function buildRefineSystemPrompt(goal: string, tasks: SuggestedTask[]): string {
+/** 执行期对话上下文（当前进度与已完成任务，供 Agent 调整计划） */
+export interface ExecutionContext {
+  completedTasks: Array<{ title: string; estimatedMinutes: number; actualMinutes?: number }>;
+  elapsedMinutes: number;
+  currentTaskId: string | null;
+}
+
+function buildRefineSystemPrompt(
+  goal: string,
+  tasks: SuggestedTask[],
+  execution?: ExecutionContext
+): string {
   const historyBlock = buildHistoryBlock(goal);
+
+  if (execution) {
+    const completedLines = execution.completedTasks.length > 0
+      ? execution.completedTasks
+          .map((t) => `- "${t.title}"（预估 ${t.estimatedMinutes} 分钟${typeof t.actualMinutes === 'number' ? `，记录用时 ${t.actualMinutes} 分钟` : ''}）`)
+          .join('\n')
+      : '（暂无已完成任务）';
+
+    return `你是一个具备多模态与代码感知能力的高级工作规划 Agent，正在任务执行过程中与用户对话，帮助其调整与优化计划。
+
+当前总目标：
+${goal}
+
+本轮已消耗总时长：约 ${execution.elapsedMinutes} 分钟
+当前聚焦任务 ID：${execution.currentTaskId || '（无）'}
+
+已完成任务（只读上下文，不可修改，也不要放进返回列表）：
+${completedLines}
+
+当前待办任务清单（JSON，含 id，按执行顺序排列）：
+${JSON.stringify(tasks.map(t => ({ id: t.id, title: t.title, estimatedMinutes: t.estimatedMinutes })), null, 0)}
+${historyBlock}
+
+用户在执行过程中可能会：反馈实际进展、发现计划不合理、要求增删改或重排剩余任务、拆细任务、咨询下一步怎么做。你可以调用本地文件与视觉工具（list_directory, read_file, read_image, search_files, find_by_name, inspect_project_structure）随时核对项目上下文。
+
+探索或思考完毕后，你必须只返回 JSON，不要用 markdown 代码块，不要多余文字。返回格式：
+{"reply":"给用户的简短中文说明（说明你改了什么或你的建议）","tasks":[{"id":"保留的任务原样带 id","title":"任务标题","estimatedMinutes":30}]}
+
+规则：
+1. 若需要修改待办任务（增删改、调整预估、重排、拆分、新增），返回修改后的完整待办清单（全量替换待办部分，不含已完成任务）。
+2. 未修改的任务必须原样保留其 id；新增任务省略 id（系统会自动生成）；被删除的任务直接不出现。
+3. 你只能调整计划，不能标记任务完成——完成与否由用户决定。
+4. 若用户只是提问、讨论思路或无需修改，只返回 {"reply":"..."}，省略 tasks。
+5. 每个子任务建议对应 15-45 分钟工作量，estimatedMinutes 为整数（复杂任务可到 60）。
+6. 调整预估时，优先参考历史相似任务的实际用时数据。`;
+  }
 
   return `你是一个具备多模态与代码感知能力的高级工作规划 Agent，正在与用户对话微调子任务拆解清单。
 
@@ -703,12 +749,13 @@ export async function refineTasks(
   history: ChatMessage[],
   userMessage: string,
   config: LlmConfig,
-  onProgress?: (status: string) => void
+  onProgress?: (status: string) => void,
+  execution?: ExecutionContext
 ): Promise<RefineResult> {
   if (!config.apiKey) throw new Error('请先在 Agent 配置中填写 API 密钥');
   if (!config.model) throw new Error('请先在 Agent 配置中选择模型');
 
-  const system = buildRefineSystemPrompt(goal, tasks);
+  const system = buildRefineSystemPrompt(goal, tasks, execution);
   const messages: ChatMessage[] = [
     ...history,
     { role: 'user', content: userMessage },
@@ -838,9 +885,10 @@ export async function refineTasks(
 
   const reply = String(parsed.reply ?? '').trim() || '（无回复）';
   if (Array.isArray(parsed.tasks)) {
-    const list: Array<{ title?: unknown; estimatedMinutes?: unknown }> = parsed.tasks as [];
+    const list: Array<{ id?: unknown; title?: unknown; estimatedMinutes?: unknown }> = parsed.tasks as [];
     const next: SuggestedTask[] = list
       .map((t) => ({
+        id: typeof t?.id === 'string' && t.id ? t.id : undefined,
         title: String(t?.title ?? '').trim(),
         estimatedMinutes: Math.max(1, Math.round(Number(t?.estimatedMinutes) || 30)),
       }))

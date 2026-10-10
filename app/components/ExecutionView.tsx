@@ -1,16 +1,27 @@
 // app/components/ExecutionView.tsx - 执行视图 (Cartesian 笛卡尔/建筑志纯净极简风格)
+// 整轮总用时计时 · 任意顺序/顺手完成 · 任务实时编辑 · Agent 实时调整对话
 
 'use client';
 
 import { useState, useEffect } from 'react';
 import { Session } from '@/lib/types';
-import { useTimer } from '@/lib/hooks/useTimer';
+import { SuggestedTask, ChatMessage } from '@/lib/agent';
+import { useElapsedTimer } from '@/lib/hooks/useTimer';
 import { EnergyWisdomCard } from './EnergyWisdomCard';
+import { TaskRefineChat } from './TaskRefineChat';
 
 interface ExecutionViewProps {
   session: Session;
-  onComplete: () => void;
-  onAddTask?: (title: string, estimatedMinutes: number) => void;
+  onCompleteCurrent: () => void;
+  onCompleteTask: (taskId: string) => void;
+  onSetFocus: (taskId: string) => void;
+  onUpdateTask: (taskId: string, patch: { title?: string; estimatedMinutes?: number }) => void;
+  onSetTaskActualMinutes: (taskId: string, minutes: number | null) => void;
+  onDeleteTask: (taskId: string) => void;
+  onMoveTask: (taskId: string, direction: 'up' | 'down') => void;
+  onAddTask: (title: string, estimatedMinutes: number) => void;
+  onApplyTasks: (tasks: SuggestedTask[]) => void;
+  onChatChange: (messages: ChatMessage[]) => void;
   onPause?: () => void;
   onResetTimer?: () => void;
 }
@@ -49,9 +60,27 @@ function playSoftChime() {
   }
 }
 
-export function ExecutionView({ session, onComplete, onAddTask, onPause, onResetTimer }: ExecutionViewProps) {
+export function ExecutionView({
+  session,
+  onCompleteCurrent,
+  onCompleteTask,
+  onSetFocus,
+  onUpdateTask,
+  onSetTaskActualMinutes,
+  onDeleteTask,
+  onMoveTask,
+  onAddTask,
+  onApplyTasks,
+  onChatChange,
+  onPause,
+  onResetTimer,
+}: ExecutionViewProps) {
   const currentTask = session.tasks.find(t => t.id === session.currentTaskId);
-  const { formattedTime } = useTimer(currentTask?.startedAt);
+  const { formattedTime, elapsedMinutes } = useElapsedTimer(
+    session.elapsedSeconds || 0,
+    session.status === 'executing',
+    session.lastResumedAt
+  );
   const [showFallback, setShowFallback] = useState(false);
   const [zenMode, setZenMode] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -62,14 +91,20 @@ export function ExecutionView({ session, onComplete, onAddTask, onPause, onReset
   const handleAddAdHocTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
-    onAddTask?.(newTitle.trim(), newMinutes);
+    onAddTask(newTitle.trim(), newMinutes);
     setNewTitle('');
     setShowAddForm(false);
   };
 
   const handleCompleteWithSound = () => {
     playSoftChime();
-    onComplete();
+    onCompleteCurrent();
+  };
+
+  const handleDelete = (taskId: string, title: string) => {
+    if (confirm(`删除任务「${title}」？`)) {
+      onDeleteTask(taskId);
+    }
   };
 
   // 键盘快捷键：Ctrl+Enter 标记完成，Alt+F 切换兜底任务，Alt+Z 切换极简模式
@@ -94,9 +129,11 @@ export function ExecutionView({ session, onComplete, onAddTask, onPause, onReset
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onComplete]);
-  
-  const completedCount = session.tasks.filter(t => t.status === 'completed').length;
+  }, [onCompleteCurrent]);
+
+  const completedTasks = session.tasks.filter(t => t.status === 'completed');
+  const pendingTasks = session.tasks.filter(t => t.status !== 'completed');
+  const completedCount = completedTasks.length;
   const totalCount = session.tasks.length;
 
   // 极简专注沉浸模式 (Zen Mode) - Cartesian Architectural Quiet Room
@@ -120,7 +157,7 @@ export function ExecutionView({ session, onComplete, onAddTask, onPause, onReset
           <div className="h-[1px] bg-cartesian-line/40 w-full overflow-hidden">
             <div 
               className="h-full bg-cartesian-ink transition-all duration-500"
-              style={{ width: `${(completedCount / totalCount) * 100}%` }}
+              style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }}
             />
           </div>
         </div>
@@ -138,7 +175,7 @@ export function ExecutionView({ session, onComplete, onAddTask, onPause, onReset
           </p>
         </div>
 
-        {/* 笛卡尔巨大计时器 (Didone Serif Numeral) */}
+        {/* 笛卡尔巨大总用时计时器 (Didone Serif Numeral) */}
         <div className="font-serif text-8xl md:text-9xl font-normal text-cartesian-ink tracking-tight select-none">
           {formattedTime}
         </div>
@@ -173,7 +210,7 @@ export function ExecutionView({ session, onComplete, onAddTask, onPause, onReset
                   type="button"
                   onClick={onResetTimer}
                   className="cartesian-micro text-cartesian-muted hover:text-cartesian-ink transition-colors"
-                  title="重置当前计时，清零已耗时间"
+                  title="重置本轮总计时，清零已累计时间"
                 >
                   ↺ Reset Timer
                 </button>
@@ -210,13 +247,47 @@ export function ExecutionView({ session, onComplete, onAddTask, onPause, onReset
         <EnergyWisdomCard variant="banner" />
       </div>
 
-      {/* 顶部目标与操作栏 (Pure Open Layout with Single Hairline Divider) */}
-      <div className="space-y-4 pb-6 border-b border-cartesian-line/40">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="cartesian-label">
-            Phase 02 · Execution Channel
+      {/* 顶部目标、总用时与操作栏 */}
+      <div className="space-y-5 pb-6 border-b border-cartesian-line/40">
+        <div className="flex flex-wrap items-start justify-between gap-6">
+          <div className="space-y-3 flex-1 min-w-[260px]">
+            <div className="cartesian-label">
+              Phase 02 · Execution Channel
+            </div>
+            <h2 className="font-sans text-xl md:text-2xl font-medium text-cartesian-ink leading-relaxed">
+              {session.goal}
+            </h2>
+
+            {/* 进度条 (Ultra-fine 1px Hairline) */}
+            <div className="space-y-2 pt-1 max-w-xl">
+              <div className="flex justify-between cartesian-micro text-cartesian-muted">
+                <span>Execution Progress</span>
+                <span>{completedCount} / {totalCount} Completed</span>
+              </div>
+              <div className="h-[2px] bg-cartesian-line/30 w-full overflow-hidden">
+                <div 
+                  className="h-full bg-cartesian-ink transition-all duration-500"
+                  style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
           </div>
 
+          {/* 整轮总用时 */}
+          <div className="text-left sm:text-right shrink-0">
+            <p className="text-6xl md:text-7xl font-serif font-normal text-cartesian-ink tracking-tight select-none tabular-nums">
+              {formattedTime}
+            </p>
+            <p className="cartesian-micro text-cartesian-muted mt-2">
+              Total Session Time · 本轮总用时
+            </p>
+            <p className="cartesian-micro text-cartesian-accent mt-0.5">
+              暂停不计时 · 子任务不计独立用时（可手动补录）
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {onPause && (
               <button
@@ -247,31 +318,12 @@ export function ExecutionView({ session, onComplete, onAddTask, onPause, onReset
           </div>
         </div>
 
-        {/* 总目标大标题 */}
-        <h2 className="font-sans text-xl md:text-2xl font-medium text-cartesian-ink leading-relaxed">
-          {session.goal}
-        </h2>
-
         {/* 展开的精力管理技巧卡片 */}
         {showEnergyCard && (
           <div className="animate-fade-in pt-2">
             <EnergyWisdomCard />
           </div>
         )}
-
-        {/* 进度条 (Ultra-fine 1px Hairline) */}
-        <div className="space-y-2 pt-2">
-          <div className="flex justify-between cartesian-micro text-cartesian-muted">
-            <span>Execution Progress</span>
-            <span>{completedCount} / {totalCount} Completed</span>
-          </div>
-          <div className="h-[2px] bg-cartesian-line/30 w-full overflow-hidden">
-            <div 
-              className="h-full bg-cartesian-ink transition-all duration-500"
-              style={{ width: `${(completedCount / totalCount) * 100}%` }}
-            />
-          </div>
-        </div>
       </div>
 
       {/* 核心活动任务区 (Open Architectural Focal Section) */}
@@ -282,7 +334,7 @@ export function ExecutionView({ session, onComplete, onAddTask, onPause, onReset
               Active Task
             </span>
             <span className="cartesian-micro text-cartesian-muted font-mono">
-              Est. {currentTask.estimatedMinutes} Min · Single Channel Focus
+              Est. {currentTask.estimatedMinutes} Min · 可在下方清单中实时编辑
             </span>
           </div>
 
@@ -291,48 +343,38 @@ export function ExecutionView({ session, onComplete, onAddTask, onPause, onReset
             {currentTask.title}
           </h3>
 
-          {/* 计时器与完成按钮 */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-8 pt-4">
-            <div>
-              <p className="text-7xl md:text-8xl font-serif font-normal text-cartesian-ink tracking-tight select-none">
-                {formattedTime}
-              </p>
-              <p className="cartesian-micro text-cartesian-muted mt-2">
-                Active Timer · Deep Work Channel
-              </p>
-            </div>
-
+          {/* 完成按钮 */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pt-1">
             <button
               type="button"
               onClick={handleCompleteWithSound}
               className="w-full sm:w-auto px-10 py-5 btn-cartesian-primary text-xs flex flex-col items-center justify-center shrink-0"
             >
-              <span className="tracking-wider font-semibold text-sm">Complete Task</span>
+              <span className="tracking-wider font-semibold text-sm">Complete Current Task</span>
               <span className="cartesian-micro text-cartesian-bg/75 tracking-widest mt-1">Ctrl + Enter</span>
             </button>
-          </div>
 
-          {/* 兜底任务切换与计时重置链接 */}
-          <div className="pt-2 flex flex-wrap items-center justify-between gap-4">
-            <button
-              type="button"
-              onClick={() => setShowFallback(!showFallback)}
-              className="cartesian-micro text-cartesian-muted hover:text-cartesian-ink underline transition-colors"
-            >
-              {showFallback ? '← Return to Active Task' : '⏸ Switch to Fallback Routine (Alt+F)'}
-            </button>
-
-            {onResetTimer && (
+            <div className="flex flex-wrap items-center gap-5">
               <button
                 type="button"
-                onClick={onResetTimer}
-                className="cartesian-micro text-cartesian-muted hover:text-cartesian-ink transition-colors flex items-center gap-1"
-                title="重置当前计时，清零已耗时间"
+                onClick={() => setShowFallback(!showFallback)}
+                className="cartesian-micro text-cartesian-muted hover:text-cartesian-ink underline transition-colors"
               >
-                <span>↺</span>
-                <span>Reset Timer (重置计时)</span>
+                {showFallback ? '← Return to Active Task' : '⏸ Switch to Fallback Routine (Alt+F)'}
               </button>
-            )}
+
+              {onResetTimer && (
+                <button
+                  type="button"
+                  onClick={onResetTimer}
+                  className="cartesian-micro text-cartesian-muted hover:text-cartesian-ink transition-colors flex items-center gap-1"
+                  title="重置本轮总计时，清零已累计时间"
+                >
+                  <span>↺</span>
+                  <span>Reset Timer (重置总计时)</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 兜底任务展开区域 */}
@@ -352,11 +394,11 @@ export function ExecutionView({ session, onComplete, onAddTask, onPause, onReset
         </div>
       )}
 
-      {/* 剩余待办队列 (Clean Architectural Open List - No Enclosing Boxes) */}
+      {/* 剩余待办队列（任意顺序完成 + 实时编辑） */}
       <div className="space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-cartesian-line/40">
           <h3 className="cartesian-label">
-            Remaining Tasks ({session.tasks.filter(t => t.status === 'pending').length})
+            Remaining Tasks ({pendingTasks.length})
           </h3>
           <button
             type="button"
@@ -371,7 +413,7 @@ export function ExecutionView({ session, onComplete, onAddTask, onPause, onReset
         {showAddForm && (
           <form
             onSubmit={handleAddAdHocTask}
-            className="p-4 bg-white/60 border border-cartesian-line/50 flex flex-wrap items-center gap-3 animate-fade-in mb-4"
+            className="p-4 bg-black/[0.02] flex flex-wrap items-center gap-3 animate-fade-in mb-4"
           >
             <input
               type="text"
@@ -402,28 +444,114 @@ export function ExecutionView({ session, onComplete, onAddTask, onPause, onReset
           </form>
         )}
 
-        {session.tasks.filter(t => t.status === 'pending').length > 0 ? (
-          <div className="divide-y divide-cartesian-line/25 border-b border-cartesian-line/25">
-            {session.tasks
-              .filter(t => t.status === 'pending')
-              .map((task, idx) => (
-                <div 
+        {pendingTasks.length > 0 ? (
+          <div className="divide-y divide-cartesian-line/15">
+            {pendingTasks.map((task, idx) => {
+              const isFocused = task.id === session.currentTaskId;
+              return (
+                <div
                   key={task.id}
-                  className="py-4 px-1 flex justify-between items-center hover:bg-black/[0.015] transition-colors"
+                  className={`py-3 px-1 flex items-center gap-2.5 transition-colors ${
+                    isFocused ? 'bg-black/[0.02] border-l-2 border-l-cartesian-ink pl-2.5' : 'hover:bg-black/[0.015]'
+                  }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-xs text-cartesian-muted w-5">
-                      {idx + 1}.
-                    </span>
-                    <span className="font-body text-body text-cartesian-ink">
-                      {task.title}
-                    </span>
+                  {/* 勾选完成（顺手完成） */}
+                  <button
+                    type="button"
+                    onClick={() => onCompleteTask(task.id)}
+                    className="w-5 h-5 flex items-center justify-center border border-cartesian-line/50 bg-transparent hover:bg-cartesian-ink hover:border-cartesian-ink transition-colors shrink-0"
+                    title="勾选完成（顺手做完的任务可直接勾掉，不影响当前聚焦）"
+                  />
+
+                  {/* 设为当前聚焦 */}
+                  <button
+                    type="button"
+                    onClick={() => onSetFocus(task.id)}
+                    className={`w-6 h-6 flex items-center justify-center text-sm shrink-0 transition-colors ${
+                      isFocused
+                        ? 'text-cartesian-ink'
+                        : 'text-cartesian-line hover:text-cartesian-ink'
+                    }`}
+                    title={isFocused ? '当前聚焦任务' : '设为当前聚焦任务'}
+                  >
+                    ◉
+                  </button>
+
+                  {/* 任务标题（失焦自动保存） */}
+                  <input
+                    key={`${task.id}:${task.title}`}
+                    type="text"
+                    defaultValue={task.title}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      if (v && v !== task.title) {
+                        onUpdateTask(task.id, { title: v });
+                      } else if (!v) {
+                        e.target.value = task.title;
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                    }}
+                    className="flex-1 min-w-0 px-2.5 py-1.5 font-body text-body bg-transparent border-0 border-b border-transparent focus:border-cartesian-ink focus:ring-0 rounded-none transition-colors"
+                  />
+
+                  {/* 预估用时（失焦自动保存） */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <input
+                      key={`${task.id}:${task.estimatedMinutes}`}
+                      type="number"
+                      min="1"
+                      max="600"
+                      defaultValue={task.estimatedMinutes}
+                      onBlur={(e) => {
+                        const v = parseInt(e.target.value) || 0;
+                        if (v > 0 && v !== task.estimatedMinutes) {
+                          onUpdateTask(task.id, { estimatedMinutes: v });
+                        } else {
+                          e.target.value = String(task.estimatedMinutes);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                      }}
+                      className="w-14 px-2 py-1.5 font-body text-small text-center bg-transparent border-0 focus:bg-white/70 focus:ring-0 rounded-none"
+                    />
+                    <span className="cartesian-micro text-cartesian-muted whitespace-nowrap">MIN</span>
                   </div>
-                  <span className="font-mono text-xs text-cartesian-muted tabular-nums shrink-0 ml-4">
-                    {task.estimatedMinutes} min
-                  </span>
+
+                  {/* 排序与删除 */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      disabled={idx === 0}
+                      onClick={() => onMoveTask(task.id, 'up')}
+                      className="w-6 h-6 flex items-center justify-center text-cartesian-line hover:text-cartesian-ink transition-colors disabled:opacity-20 text-xs"
+                      title="上移"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      disabled={idx === pendingTasks.length - 1}
+                      onClick={() => onMoveTask(task.id, 'down')}
+                      className="w-6 h-6 flex items-center justify-center text-cartesian-line hover:text-cartesian-ink transition-colors disabled:opacity-20 text-xs"
+                      title="下移"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(task.id, task.title)}
+                      className="w-6 h-6 flex items-center justify-center text-cartesian-line hover:text-cartesian-danger transition-colors text-xs"
+                      title="删除"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
-              ))}
+              );
+            })}
           </div>
         ) : (
           !showAddForm && (
@@ -434,27 +562,70 @@ export function ExecutionView({ session, onComplete, onAddTask, onPause, onReset
         )}
       </div>
 
-      {/* 已完成任务归档 */}
+      {/* 执行期 Agent 实时调整对话（多轮记忆，随会话持久化） */}
+      <TaskRefineChat
+        goal={session.goal}
+        tasks={pendingTasks.map(t => ({ id: t.id, title: t.title, estimatedMinutes: t.estimatedMinutes }))}
+        onTasksUpdate={onApplyTasks}
+        mode="execution"
+        messages={session.chatHistory || []}
+        onMessagesChange={onChatChange}
+        execution={{
+          completedTasks: completedTasks.map(t => ({
+            title: t.title,
+            estimatedMinutes: t.estimatedMinutes,
+            actualMinutes: t.actualMinutes,
+          })),
+          elapsedMinutes,
+          currentTaskId: session.currentTaskId,
+        }}
+      />
+
+      {/* 已完成任务归档（可手动补录用时） */}
       {completedCount > 0 && (
         <div className="space-y-3 pt-4">
           <h3 className="cartesian-label text-cartesian-muted">
             Completed Archive ({completedCount})
           </h3>
-          <div className="divide-y divide-cartesian-line/20 border-b border-cartesian-line/20">
-            {session.tasks
-              .filter(t => t.status === 'completed')
-              .map(task => (
-                <div 
-                  key={task.id}
-                  className="py-3 px-1 flex justify-between items-center opacity-50"
-                >
-                  <span className="font-body text-small text-cartesian-muted line-through">{task.title}</span>
-                  <span className="cartesian-micro text-cartesian-accent shrink-0 ml-4">
-                    ✓ {task.actualMinutes} min
-                  </span>
+          <div className="divide-y divide-cartesian-line/15">
+            {completedTasks.map(task => (
+              <div
+                key={task.id}
+                className="py-3 px-1 flex items-center gap-3 opacity-70 hover:opacity-100 transition-opacity"
+              >
+                <span className="w-6 h-6 flex items-center justify-center text-cartesian-success font-bold shrink-0">
+                  ✓
+                </span>
+                <span className="font-body text-small text-cartesian-muted line-through truncate flex-1 min-w-0">
+                  {task.title}
+                </span>
+                <div className="flex items-center gap-1.5 shrink-0" title="可选：手动填写该任务真实用时（分钟）">
+                  <input
+                    key={`${task.id}:${task.actualMinutes ?? ''}`}
+                    type="number"
+                    min="0"
+                    placeholder="用时"
+                    defaultValue={task.actualMinutes ?? ''}
+                    onBlur={(e) => {
+                      const raw = e.target.value.trim();
+                      const v = raw === '' ? null : Math.max(0, parseInt(raw) || 0);
+                      if (v !== (task.actualMinutes ?? null)) {
+                        onSetTaskActualMinutes(task.id, v);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                    }}
+                    className="w-16 px-2 py-1 font-mono text-small text-center bg-transparent border-0 focus:bg-white/70 focus:ring-0 rounded-none"
+                  />
+                  <span className="cartesian-micro text-cartesian-muted">MIN</span>
                 </div>
-              ))}
+              </div>
+            ))}
           </div>
+          <p className="cartesian-micro text-cartesian-muted">
+            子任务默认不计独立用时（现实中任务常相互耦合），整轮总用时已自动统计；需要时可为个别任务补录分钟数。
+          </p>
         </div>
       )}
     </div>

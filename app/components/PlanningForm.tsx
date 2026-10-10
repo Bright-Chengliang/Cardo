@@ -246,7 +246,7 @@ export function PlanningForm({ onSubmit, onResumeSession }: PlanningFormProps) {
                   key={idx}
                   type="button"
                   onClick={() => setGoal(rg)}
-                  className="px-2.5 py-1 bg-white/70 border border-cartesian-line font-body text-xs text-cartesian-ink hover:bg-cartesian-ink hover:text-white transition-colors truncate max-w-[180px]"
+                  className="px-2.5 py-1 bg-white/70 font-body text-xs text-cartesian-ink hover:bg-cartesian-ink hover:text-white transition-colors truncate max-w-[180px]"
                   title={rg}
                 >
                   {rg}
@@ -307,7 +307,7 @@ export function PlanningForm({ onSubmit, onResumeSession }: PlanningFormProps) {
           <p className="font-body text-small text-cartesian-danger">✕ {aiError}</p>
         )}
 
-        <div className="divide-y divide-cartesian-line/25 border-t border-b border-cartesian-line/25">
+        <div className="divide-y divide-cartesian-line/15">
           {tasks.map((task, index) => (
             <div key={index} className="py-3 px-1 flex gap-3 items-center hover:bg-black/[0.01] transition-colors">
               {/* 序号 (Cartesian Circular Drafting Mark) */}
@@ -321,7 +321,7 @@ export function PlanningForm({ onSubmit, onResumeSession }: PlanningFormProps) {
                 value={task.title}
                 onChange={(e) => updateTask(index, 'title', e.target.value)}
                 placeholder={`任务 ${index + 1}`}
-                className="flex-1 px-3 py-1.5 font-body text-body bg-transparent border-0 border-b border-cartesian-line/50 focus:border-cartesian-ink focus:ring-0 rounded-none transition-colors"
+                className="flex-1 px-3 py-1.5 font-body text-body bg-transparent border-0 border-b border-transparent focus:border-cartesian-ink focus:ring-0 rounded-none transition-colors"
               />
 
               {/* 预估时间输入框 */}
@@ -331,12 +331,12 @@ export function PlanningForm({ onSubmit, onResumeSession }: PlanningFormProps) {
                   value={task.estimatedMinutes}
                   onChange={(e) => updateTask(index, 'estimatedMinutes', parseInt(e.target.value) || 0)}
                   min="1"
-                  className="w-14 px-2 py-1.5 font-body text-small text-center bg-transparent border-0 border-b border-cartesian-line/50 focus:border-cartesian-ink focus:ring-0 rounded-none"
+                  className="w-14 px-2 py-1.5 font-body text-small text-center bg-transparent border-0 focus:bg-white/70 focus:ring-0 rounded-none"
                 />
                 <span className="cartesian-micro text-cartesian-muted whitespace-nowrap">MIN</span>
                 {task.historyRef && (
                   <span
-                    className="px-1.5 py-0.5 border border-cartesian-line/60 bg-white/40 font-mono text-[11px] text-cartesian-ink whitespace-nowrap"
+                    className="px-1.5 py-0.5 bg-white/50 font-mono text-[11px] text-cartesian-ink whitespace-nowrap"
                     title={`参考 ${task.historyRef.matches} 个相似历史任务，平均实际用时 ${task.historyRef.avgActual} 分钟`}
                   >
                     avg {task.historyRef.avgActual}m
@@ -350,7 +350,7 @@ export function PlanningForm({ onSubmit, onResumeSession }: PlanningFormProps) {
                   type="button"
                   disabled={index === 0}
                   onClick={() => moveTask(index, 'up')}
-                  className="w-6 h-6 flex items-center justify-center border border-cartesian-line/50 bg-white/50 text-cartesian-muted hover:text-cartesian-ink hover:border-cartesian-ink transition-colors disabled:opacity-20 text-xs"
+                  className="w-6 h-6 flex items-center justify-center text-cartesian-line hover:text-cartesian-ink transition-colors disabled:opacity-20 text-xs"
                   title="上移"
                 >
                   ↑
@@ -359,7 +359,7 @@ export function PlanningForm({ onSubmit, onResumeSession }: PlanningFormProps) {
                   type="button"
                   disabled={index === tasks.length - 1}
                   onClick={() => moveTask(index, 'down')}
-                  className="w-6 h-6 flex items-center justify-center border border-cartesian-line/50 bg-white/50 text-cartesian-muted hover:text-cartesian-ink hover:border-cartesian-ink transition-colors disabled:opacity-20 text-xs"
+                  className="w-6 h-6 flex items-center justify-center text-cartesian-line hover:text-cartesian-ink transition-colors disabled:opacity-20 text-xs"
                   title="下移"
                 >
                   ↓
@@ -368,7 +368,7 @@ export function PlanningForm({ onSubmit, onResumeSession }: PlanningFormProps) {
                   <button
                     type="button"
                     onClick={() => removeTask(index)}
-                    className="w-6 h-6 flex items-center justify-center border border-cartesian-line/50 bg-white/50 text-cartesian-muted hover:text-cartesian-danger hover:border-cartesian-danger transition-colors text-xs"
+                    className="w-6 h-6 flex items-center justify-center text-cartesian-line hover:text-cartesian-danger transition-colors text-xs"
                     title="删除"
                   >
                     ×

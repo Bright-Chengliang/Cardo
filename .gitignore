@@ -51,3 +51,7 @@ goal.md
 *.swp
 *.swo
 *~
+
+# AOCI agent host integration (machine-bound; do not commit)
+opencode.json
+opencode.json.backup.*

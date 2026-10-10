@@ -104,19 +104,19 @@ export function AgentConfigPanel({ onConfigChange }: AgentConfigPanelProps) {
     });
 
   return (
-    <div className="border border-cartesian-line bg-white/60">
+    <div className="border-l-2 border-[#C07028]/60 bg-[#FCF6EE]/45">
       {/* 折叠头 */}
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-white/80 transition-colors text-left"
+        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-[#FCF6EE] transition-colors text-left"
       >
         <span className="cartesian-label flex items-center gap-2">
-          <span className="w-1.5 h-1.5 bg-cartesian-accent inline-block"></span>
+          <span className="w-1.5 h-1.5 bg-[#A34F10] inline-block"></span>
           AI Agent Engine Parameters
         </span>
         <div className="flex items-center gap-2">
-          <span className="cartesian-micro px-2 py-0.5 border border-cartesian-line bg-cartesian-bg text-cartesian-muted truncate max-w-[200px]">
+          <span className="cartesian-micro px-2 py-0.5 bg-cartesian-bg/80 text-cartesian-muted truncate max-w-[200px]">
             {config.model ? config.model : 'Not Configured'}
           </span>
           <span className="font-serif text-sm text-cartesian-ink">
@@ -126,7 +126,7 @@ export function AgentConfigPanel({ onConfigChange }: AgentConfigPanelProps) {
       </button>
 
       {open && (
-        <div className="px-5 py-5 space-y-4 border-t border-cartesian-line bg-cartesian-bg/30">
+        <div className="px-5 py-5 space-y-4 bg-white/40">
           {/* API 端点 */}
           <div className="space-y-1.5">
             <label className="block cartesian-label">
@@ -193,7 +193,7 @@ export function AgentConfigPanel({ onConfigChange }: AgentConfigPanelProps) {
               <button
                 type="button"
                 onClick={() => setShowKey(!showKey)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 border border-cartesian-line bg-cartesian-bg cartesian-micro text-cartesian-ink hover:bg-cartesian-ink hover:text-white transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 bg-cartesian-bg/80 cartesian-micro text-cartesian-ink hover:bg-cartesian-ink hover:text-white transition-colors"
               >
                 {showKey ? 'HIDE' : 'SHOW'}
               </button>
@@ -236,7 +236,7 @@ export function AgentConfigPanel({ onConfigChange }: AgentConfigPanelProps) {
                   placeholder="搜索模型（模糊匹配）..."
                   className="w-full px-3 py-1.5 font-body text-xs"
                 />
-                <div className="max-h-44 overflow-y-auto border border-cartesian-line divide-y divide-cartesian-line bg-white/80 custom-scrollbar">
+                <div className="max-h-44 overflow-y-auto bg-white/80 divide-y divide-cartesian-line/20 custom-scrollbar">
                   {visibleModels.length === 0 && (
                     <p className="px-3 py-2 cartesian-micro text-cartesian-muted">无匹配模型</p>
                   )}
@@ -293,10 +293,10 @@ export function AgentConfigPanel({ onConfigChange }: AgentConfigPanelProps) {
           {/* 状态消息 */}
           {status.kind && (
             <div
-              className={`p-2.5 border cartesian-micro ${
+              className={`p-2.5 cartesian-micro ${
                 status.kind === 'ok'
-                  ? 'bg-cartesian-bg border-cartesian-line text-cartesian-success'
-                  : 'bg-cartesian-bg border-cartesian-line text-cartesian-danger'
+                  ? 'bg-cartesian-bg text-cartesian-success'
+                  : 'bg-cartesian-bg text-cartesian-danger'
               }`}
             >
               {status.kind === 'ok' ? '✓ ' : '✕ '}

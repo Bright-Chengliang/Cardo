@@ -19,9 +19,17 @@ export default function HomePage() {
     startSession,
     resumeSession,
     pauseSession,
-    resetCurrentTaskTimer,
+    resetSessionTimer,
     completeCurrentTask,
+    completeTask,
+    setFocusTask,
+    updateTask,
+    setTaskActualMinutes,
+    deleteTask,
+    moveTask,
     addTaskToSession,
+    applyTasksUpdate,
+    updateChatHistory,
     endSession 
   } = useCurrentSession();
 
@@ -117,16 +125,25 @@ export default function HomePage() {
           {session && session.status === 'executing' && (
             <ExecutionView 
               session={session} 
-              onComplete={completeCurrentTask}
+              onCompleteCurrent={completeCurrentTask}
+              onCompleteTask={completeTask}
+              onSetFocus={setFocusTask}
+              onUpdateTask={updateTask}
+              onSetTaskActualMinutes={setTaskActualMinutes}
+              onDeleteTask={deleteTask}
+              onMoveTask={moveTask}
               onAddTask={addTaskToSession}
+              onApplyTasks={applyTasksUpdate}
+              onChatChange={updateChatHistory}
               onPause={pauseSession}
-              onResetTimer={resetCurrentTaskTimer}
+              onResetTimer={resetSessionTimer}
             />
           )}
 
           {session && session.status === 'completed' && (
             <CompletionView 
               session={session} 
+              onSetTaskActualMinutes={setTaskActualMinutes}
               onNewSession={() => {
                 endSession();
               }} 

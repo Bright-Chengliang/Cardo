@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@config "../tailwind.config.ts";
 
 /* ==========================================================================
    Cartesian Visual Design System (Museum-Catalog / Architectural Monograph)

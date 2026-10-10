@@ -4,7 +4,7 @@
 
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { SessionSummary, Session } from '@/lib/types';
-import { getSummaries, getSessions, deleteSummary, deleteSession, clearAllHistory } from '@/lib/storage';
+import { getSummaries, getSessions, deleteSummary, deleteSession, clearAllHistory, updateSessionTaskField } from '@/lib/storage';
 import Link from 'next/link';
 
 export default function HistoryPage() {
@@ -190,12 +190,13 @@ export default function HistoryPage() {
     );
   }
 
-  const totalSessions = summaries.length;
   const totalActualMinutes = summaries.reduce((sum, s) => sum + (s.totalActualMinutes || 0), 0);
   const totalFocusHours = (totalActualMinutes / 60).toFixed(1);
-  const avgAccuracy = totalSessions > 0
-    ? summaries.reduce((sum, s) => sum + s.accuracyRate, 0) / totalSessions
-    : 0;
+  // 准确率仅统计有独立计时数据的轮次（装饰性指标，不参与核心判断）
+  const timedSummaries = summaries.filter(s => s.timedTasks === undefined || s.timedTasks > 0);
+  const avgAccuracy = timedSummaries.length > 0
+    ? timedSummaries.reduce((sum, s) => sum + s.accuracyRate, 0) / timedSummaries.length
+    : null;
 
   const inProgressCount = sessions.filter(s => s.status === 'executing' || s.status === 'paused' || s.status === 'planning').length;
   const completedCount = summaries.length || sessions.filter(s => s.status === 'completed').length;
@@ -326,10 +327,10 @@ export default function HistoryPage() {
               <div className="bg-white/60 border border-cartesian-line/50 p-6">
                 <div className="cartesian-label mb-2 text-cartesian-muted">Mean Accuracy</div>
                 <p className="font-serif text-4xl font-normal text-cartesian-ink">
-                  {(avgAccuracy * 100).toFixed(1)}%
+                  {avgAccuracy === null ? '—' : `${(avgAccuracy * 100).toFixed(1)}%`}
                 </p>
                 <div className="cartesian-micro text-cartesian-accent mt-2">
-                  时间感知校准度
+                  时间感知校准度（装饰性指标）
                 </div>
               </div>
 
@@ -470,7 +471,7 @@ export default function HistoryPage() {
                             {summary && (
                               <div className="text-right pr-2">
                                 <p className="font-serif text-2xl font-normal text-cartesian-ink">
-                                  {(summary.accuracyRate * 100).toFixed(0)}%
+                                  {summary.timedTasks === 0 ? '—' : `${(summary.accuracyRate * 100).toFixed(0)}%`}
                                 </p>
                                 <p className="cartesian-micro text-cartesian-muted">准确率</p>
                               </div>
@@ -524,7 +525,6 @@ export default function HistoryPage() {
                             </h4>
                             <div className="divide-y divide-cartesian-line/20">
                               {sessionDetail.tasks.map((task, idx) => {
-                                const actual = task.actualMinutes || 0;
                                 const est = task.estimatedMinutes;
                                 const isDone = task.status === 'completed';
                                 const isInProg = task.status === 'in_progress';
@@ -536,7 +536,7 @@ export default function HistoryPage() {
                                   >
                                     <div className="flex items-center gap-2">
                                       <span className={`w-5 h-5 flex items-center justify-center font-serif text-xs shrink-0 ${
-                                        isDone ? 'bg-cartesian-ink text-white' : isInProg ? 'border border-[#9E6D38] text-[#9E6D38]' : 'border border-cartesian-line/60 text-cartesian-muted'
+                                        isDone ? 'text-cartesian-success font-semibold' : isInProg ? 'border border-[#9E6D38] text-[#9E6D38]' : 'border border-cartesian-line/60 text-cartesian-muted'
                                       }`}>
                                         {isDone ? '✓' : idx + 1}
                                       </span>
@@ -551,7 +551,30 @@ export default function HistoryPage() {
                                     </div>
                                     <div className="flex items-center gap-3 cartesian-micro text-cartesian-muted pl-7 sm:pl-0">
                                       <span>Est: {est}m</span>
-                                      {isDone && <span>Act: {actual}m</span>}
+                                      {isDone && (
+                                        <div className="flex items-center gap-1.5" title="可选：手动补录该任务真实用时（分钟）">
+                                          <input
+                                            key={`${task.id}:${task.actualMinutes ?? ''}`}
+                                            type="number"
+                                            min="0"
+                                            placeholder="用时"
+                                            defaultValue={task.actualMinutes ?? ''}
+                                            onBlur={(e) => {
+                                              const raw = e.target.value.trim();
+                                              const v = raw === '' ? null : Math.max(0, parseInt(raw) || 0);
+                                              if (v !== (task.actualMinutes ?? null)) {
+                                                updateSessionTaskField(session.id, task.id, { actualMinutes: v ?? undefined });
+                                                loadData();
+                                              }
+                                            }}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                            }}
+                                            className="w-14 px-1.5 py-0.5 font-mono text-xs text-center bg-transparent border-0 border-b border-cartesian-line/50 focus:border-cartesian-ink focus:ring-0 rounded-none"
+                                          />
+                                          <span className="cartesian-micro text-cartesian-muted">MIN</span>
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 );

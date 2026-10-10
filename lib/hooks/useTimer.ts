@@ -1,58 +1,48 @@
-// lib/hooks/useTimer.ts - 计时器 Hook
+// lib/hooks/useTimer.ts - 整轮总用时计时 Hook（暂停期间不增长）
 
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-export function useTimer(startedAt?: string) {
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+/** 格式化时长：超过 1 小时显示 hh:mm:ss，否则 mm:ss */
+export function formatDuration(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (hours > 0) {
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
 
-  // 计算已过去的时间
-  const calculateElapsed = useCallback(() => {
-    if (!startedAt) return 0;
-    
-    const start = new Date(startedAt).getTime();
-    const now = Date.now();
-    return Math.floor((now - start) / 1000);
-  }, [startedAt]);
+/**
+ * 整轮总用时计时器。
+ * @param baseSeconds 已累计的专注秒数（session.elapsedSeconds）
+ * @param running 是否处于执行中（暂停时停止累加）
+ * @param runningSince 当前执行段起点 ISO（session.lastResumedAt）
+ */
+export function useElapsedTimer(baseSeconds: number, running: boolean, runningSince?: string | null) {
+  const compute = useCallback(() => {
+    const base = Math.max(0, Math.floor(baseSeconds || 0));
+    if (!running || !runningSince) return base;
+    const start = new Date(runningSince).getTime();
+    if (!Number.isFinite(start)) return base;
+    return base + Math.max(0, Math.floor((Date.now() - start) / 1000));
+  }, [baseSeconds, running, runningSince]);
 
-  // 启动计时器
+  const [seconds, setSeconds] = useState(compute);
+
   useEffect(() => {
-    if (!startedAt) {
-      setElapsedSeconds(0);
-      return;
-    }
-
-    // 立即更新一次
-    setElapsedSeconds(calculateElapsed());
-
-    // 每秒更新
-    intervalRef.current = setInterval(() => {
-      setElapsedSeconds(calculateElapsed());
-    }, 1000);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [startedAt, calculateElapsed]);
-
-  // 格式化时间显示 (超 1 小时自动显示 hh:mm:ss，否则 mm:ss)
-  const formatTime = useCallback((seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    if (hours > 0) {
-      return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  }, []);
+    setSeconds(compute());
+    if (!running || !runningSince) return;
+    const interval = setInterval(() => setSeconds(compute()), 1000);
+    return () => clearInterval(interval);
+  }, [compute, running, runningSince]);
 
   return {
-    elapsedSeconds,
-    elapsedMinutes: Math.floor(elapsedSeconds / 60),
-    formattedTime: formatTime(elapsedSeconds),
+    elapsedSeconds: seconds,
+    elapsedMinutes: Math.floor(seconds / 60),
+    formattedTime: formatDuration(seconds),
   };
 }

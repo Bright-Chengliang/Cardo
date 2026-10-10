@@ -1,0 +1,77 @@
+#AOCI-CODE-VOLUME: 1
+
+===D:/D_disk/Code/Focus/===
+.env.example[FC5T]: F:LLM 环境变量模板：演示 NEXT_PUBLIC_* 与服务端双份的端点/模型/密钥变量 | R:code:lib/agent.ts | A:NEXT_PUBLIC_LLM_BASE_URL / NEXT_PUBLIC_LLM_MODEL / NEXT_PUBLIC_LLM_API_KEY / NEXT_PUBLIC_LLM_PROVIDER | S:代码实际只读取 NEXT_PUBLIC_* 前缀（lib/agent.ts ENV_CONFIG）；该前缀会打进浏览器包，真实密钥更宜经 /api/llm/proxy 转发使用
+.gitattributes[FG6T]: F:AOCI 基线字节一致保障：强制全仓库文本文件以 LF 检出 | R:- | A:* text=auto eol=lf | S:由 aoci init 生成的安全配置，一旦移除，Windows 默认 autocrlf 会改写行尾使整个索引被判 stale
+.gitignore[FC6T]: F:Git 忽略清单：排除依赖、构建产物、本地密钥、日志与运行时数据以及 AOCI 宿主配置 | R:- | A:忽略 node_modules/.next/.env*.local/.logs/.run/server/goal.md/opencode.json 等 | S:server/（含 relay.js 中继服务）与 goal.md 被整体排除、不随仓库分发；opencode.json 是机器绑定的 MCP 宿主配置，aoci init 特意加入忽略
+AGENTS.md[SG9S]: F:常驻 Agent 开发规范：无头后台执行安全、Cartesian 设计系统、3025 端口服务与 AOCI 认知层治理 | R:code:aoci.txt, code:.aoci/config.json, code:opencode.json | A:- | S:aoci init 追加的 aoci:begin 注释区块由工具维护，手工大幅改动可能破坏幂等；启动类脚本必须用 Start-Process 无头后台执行，严禁前台同步阻塞
+CLAUDE.md[SG6T]: F:Claude/Agent 简版规范：执行安全、Cartesian 视觉标准与端口服务信息 | R:code:AGENTS.md | A:- | S:与 AGENTS.md 双份维护：修改规范必须同步两处，否则不同宿主 Agent 会读到不一致约束
+README.md[SG8S]: F:项目门面文档：痛点定位、功能视图截图、功能清单、快速启动与快捷键 | R:code:docs/assets/cardo-planning.png, code:docs/assets/cardo-execution.png, code:docs/assets/cardo-history.png, code:docs/assets/cardo-mobile.png, code:scripts/capture-docs-screenshots.py | A:- | S:功能描述必须与现行计时模型同步（整轮总用时、子任务不自动计时可手动补录）；截图由 capture-docs-screenshots.py 生成，改 UI 后需重拍
+next.config.js[FV6T]: F:Next.js 构建配置：仅开启 React Strict Mode | R:- | A:nextConfig（reactStrictMode: true） | S:Strict Mode 令开发模式 effect 双执行（定时器/订阅调试需注意），生产不受影响
+package-lock.json[FV6L]: F:npm 依赖锁定文件：精确版本与完整性哈希 | R:code:package.json | A:- | S:lockfile name 仍为 "focus"（package.json 已是 cardo），npm install 不会自动同步该字段；勿手改
+package.json[FV8T]: F:项目清单：dev/build/start/lint/typecheck 脚本与 Next15/React19/nanoid/Tailwind4 依赖 | R:code:scripts/start-background.ps1, code:next.config.js, code:tailwind.config.ts | A:scripts dev/build/start/lint/typecheck；deps next/react/react-dom/nanoid；devDeps typescript/tailwindcss/@tailwindcss/postcss/postcss | S:dev 与 start 均硬编码端口 3025；lint 是未配置的交互式 next lint 勿当 CI 门禁；无 test 脚本，验证靠 typecheck+build
+postcss.config.js[FV5T]: F:PostCSS 配置：接入 @tailwindcss/postcss（Tailwind v4 集成） | R:code:tailwind.config.ts, code:app/globals.css | A:'@tailwindcss/postcss' | S:Tailwind v4 依赖此插件编译 globals.css，移除后全站样式失效
+tailwind.config.ts[FV7T]: F:Tailwind 配置：Cartesian 色板/字体栈/响应式字号/极简圆角与阴影扩展 | R:code:app/globals.css, code:AGENTS.md | A:colors cartesian-* 系列；fontFamily display/body/sans/serif/timer/mono；fontSize display~micro 八档；boxShadow cartesian-card | S:serif/timer 依赖 --font-playfair、其余依赖 --font-inter（next/font 注入）；圆角压到 0-6px 维持建筑志风格
+tsconfig.json[FV6T]: F:TS 编译配置：strict、bundler 解析、@/* 路径别名与 Next 插件 | R:code:app/page.tsx | A:@/* 别名；next 插件；isolatedModules/noEmit | S:@/* 是 TS 层别名而实际代码用相对路径导入；noEmit 支撑 next build 与 tsc --noEmit 双校验
+
+===D:/D_disk/Code/Focus/app/api/fs/tool/===
+route.ts[EA8M]: F:服务端文件系统与多模态 Tooling 套件：文本/图像读取、目录遍历、全文检索、文件名定位与项目结构扫描 | R:code:lib/agent.ts | A:POST /api/fs/tool：read_file, read_image, list_directory, search_files, find_by_name, inspect_project_structure | S:路径无沙箱可读任意绝对路径；遍历与检索统一跳过 IGNORED_NAMES 与点文件；read_image 返回整图 Base64 dataUrl（可能数 MB）
+
+===D:/D_disk/Code/Focus/app/api/llm/proxy/===
+route.ts[EN8M]: F:LLM 出站代理：用 Node 原生 http/https 转发浏览器请求以绕过 CORS 并兼容各类本地网关 | R:code:lib/agent.ts | A:POST /api/llm/proxy {url,method,headers,data} | S:超时 90 秒；为防部分网关 Content-Length 不匹配，收到可完整 JSON.parse 的累计响应即提前结束；强制 Connection: close 每次新建连接
+
+===D:/D_disk/Code/Focus/app/api/network/ip/===
+route.ts[EN5T]: F:返回本机非回环 IPv4 地址与移动端访问 URL，供副屏连接 | R:code:app/components/MobileConnectModal.tsx | A:GET /api/network/ip → {ips, port:3025, mobileUrl} | S:端口 3025 与 mobileUrl 硬编码，需与启动脚本及 MobileConnectModal 三处保持一致；mobileUrl 固定取第一个非回环 IPv4
+
+===D:/D_disk/Code/Focus/app/api/session/complete/===
+route.ts[ED8S]: F:移动端完成任务 API：任意/批量标记完成、重算焦点、累计整轮总用时并在全完成时写服务端总结 | R:code:lib/server-store.ts, code:lib/types.ts, code:app/mobile/page.tsx, code:lib/hooks/useCurrentSession.ts | A:POST /api/session/complete {taskId?|taskIds?} → {ok,session} | S:仅 executing 可调用；每次完成把执行段结算进 elapsedSeconds 并把 lastResumedAt 重置为当前（防桌面端继续计时时双计）；不落盘，桌面端经轮询采纳
+
+===D:/D_disk/Code/Focus/app/api/session/current/===
+route.ts[ED7T]: F:当前会话读取与全量覆盖同步端点（内存中继） | R:code:lib/server-store.ts, code:lib/hooks/useCurrentSession.ts, code:app/mobile/page.tsx | A:GET /api/session/current；POST /api/session/current {session|null} | S:POST 为整体覆盖，传 {session:null} 即清除；数据仅存 globalThis 进程内存，服务重启即失效
+
+===D:/D_disk/Code/Focus/app/components/===
+AgentConfigPanel.tsx[AU6M]: F:LLM 配置面板：端点/协议切换、密钥显隐、模型列表获取与收藏搜索、连接测试与持久化 | R:code:lib/agent.ts, code:app/components/PlanningForm.tsx | A:AgentConfigPanel({onConfigChange}) | S:配置仅在首次挂载加载一次（loadedOnce）；切换 provider 会清空 baseUrl；密钥仅存 localStorage 的 cardo_config；模块以左侧 ember 色条（#C07028）+ 淡杏底标识，方点 #A34F10
+CompletionView.tsx[AU7S]: F:完成总结视图：完成任务数、整轮总用时、预估总量、偏差明细、个别任务用时补录与镇定反馈文案 | R:code:app/page.tsx, code:lib/hooks/useCurrentSession.ts | A:CompletionView({session, onSetTaskActualMinutes, onNewSession}) | S:总用时经 getSessionElapsedSeconds 读取（完成态已冻结）；准确率为装饰性指标，无手动计时任务时不显示命中统计
+EnergyWisdomCard.tsx[AU5M]: F:精力与注意力法则卡片：随机初始法则、前后切换、全集索引弹窗与科学机理折叠，含 compact/full/banner 三变体 | R:code:lib/energy-tips.ts, code:app/components/ExecutionView.tsx, code:app/components/PlanningForm.tsx | A:EnergyWisdomCard({variant?, initialTipId?, className?}) | S:初始法则随机选取（每次刷新可能变化）；banner 变体仅有 Next 切换，无机理折叠与索引弹窗
+ExecutionView.tsx[AU9L]: F:执行主视图：整轮总用时大字计时、任务行内实时编辑、顺手完成/聚焦切换/排序删除、手动补录用时、Zen 模式与 Agent 对话接入 | R:code:lib/hooks/useCurrentSession.ts, code:lib/hooks/useTimer.ts, code:app/components/TaskRefineChat.tsx, code:app/components/EnergyWisdomCard.tsx | A:ExecutionView({session,onCompleteCurrent/onCompleteTask,onSetFocus/onUpdateTask/onSetTaskActualMinutes,onDeleteTask/onMoveTask/onAddTask,onApplyTasks/onChatChange,onPause/onResetTimer}) | S:标题/预估输入框用 defaultValue+onBlur 提交且 key 为「id:值」，外部更新会重挂载输入框；完成焦点任务自动续接下一个 pending，完成非焦点任务不改焦点；Ctrl+Enter 完成当前任务，焦点在输入框时不触发；完成归档用绿色 ✓（cartesian-success）标识
+FocusPreflightModal.tsx[AU6S]: F:启动前四步就绪仪式弹窗：物理隔离/数字清理/单任务锁定/兜底心态，逐项勾选并折叠科学依据 | R:code:lib/energy-tips.ts, code:app/components/PlanningForm.tsx | A:FocusPreflightModal({isOpen,onClose,onConfirmStart,goal,firstTaskTitle,fallbackTask}) | S:「下次直接跳过」只写入 localStorage 键 focus_skip_preflight_guide，仓库内无任何读取方（当前为死功能）；每次打开重置全部勾选
+MobileConnectModal.tsx[AU5T]: F:移动端副屏连接弹窗：局域网 IP 选择、移动 URL 复制与打卡使用指引 | R:code:app/api/network/ip/route.ts, code:app/page.tsx | A:MobileConnectModal({isOpen,onClose}) | S:URL 端口 3025 硬编码，需与 /api/network/ip 保持一致；仅提供复制链接与说明，无二维码渲染
+PlanningForm.tsx[AU8L]: F:规划表单：目标输入与最近目标回填、子任务增删改排序、AI 拆解入口、对话微调、历史模板读档、兜底任务与就绪启动 | R:code:lib/agent.ts, code:lib/storage.ts, code:app/components/AgentConfigPanel.tsx, code:app/components/TaskRefineChat.tsx, code:app/components/FocusPreflightModal.tsx, code:app/components/EnergyWisdomCard.tsx | A:PlanningForm({onSubmit,onResumeSession}) | S:提交时剥离 historyRef 展示元数据；Ctrl+Enter 仅打开就绪弹窗不直接开始；未完成会话提示只取最新一条；模板载入带上原标题与预估但不带任务 id/状态
+TaskRefineChat.tsx[AU8M]: F:与 LLM 的多轮对话组件：规划期微调拆解、执行期实时重排/拆分/增删待办，可折叠并支持清空历史 | R:code:lib/agent.ts, code:app/components/PlanningForm.tsx, code:app/components/ExecutionView.tsx | A:TaskRefineChat({goal,tasks,onTasksUpdate,mode?,messages?/onMessagesChange?,execution?}) | S:messages 受控时父级写入 session.chatHistory 随会话同步；发送失败回滚消息并恢复输入；Enter 发送用 isComposing 保护中文输入法；模块以左侧 ember 色条与淡杏底标识，与进度提示同色系
+
+===D:/D_disk/Code/Focus/app/===
+globals.css[CG7M]: F:Cartesian 设计系统全局样式：色板变量、硫酸纸卡片、发丝线、几何圆环装饰、按钮与滚动条、淡入动画 | R:code:tailwind.config.ts, code:app/layout.tsx | A:CSS 变量 --bg-primary/--line/--font-*；.cartesian-card/.cartesian-label/.cartesian-micro/.geo-decoration/.geo-ring-lg/.btn-cartesian-primary/.btn-cartesian-outline/.animate-fade-in | S:Tailwind v4 不自动加载 tailwind.config.ts，须用 @config 指令引入，否则 cartesian-* 令牌全失效；全局覆盖 input/textarea/select 外观与两级滚动条
+layout.tsx[EG7T]: F:根布局：Playfair/Inter 字体加载注入 CSS 变量、PWA manifest 与元数据、全局 body 基底样式 | R:code:app/globals.css, code:public/manifest.json | A:metadata（标题/描述/manifest/appleWebApp）；viewport（禁缩放、themeColor #EDE8E0） | S:viewport 将 maximumScale 设为 1 且 userScalable=false（移动端禁止双指缩放）；字体变量 --font-playfair/--font-inter 由 next/font 生成，globals.css 依赖它们
+page.tsx[EG8S]: F:主页编排：按会话状态切换规划/执行/完成三视图、动态标签页标题、resumeId 读档跳转、移动端弹窗与暂存/放弃操作 | R:code:lib/hooks/useCurrentSession.ts, code:app/components/PlanningForm.tsx, code:app/components/ExecutionView.tsx, code:app/components/CompletionView.tsx, code:app/components/MobileConnectModal.tsx | A:Home 组件；URL 参数 resumeId | S:resumeId 处理完会 window.history.replaceState 清除参数；三视图切换只看 session.status；放弃轮次用 confirm 询问但不删除历史会话
+
+===D:/D_disk/Code/Focus/app/history/===
+page.tsx[AU7L]: F:历史档案页：统计卡片、准确率趋势 SVG 折线、会话列表（Tab/搜索/展开明细）、JSON/CSV 导入导出与手动补录用时 | R:code:lib/storage.ts, code:lib/types.ts, code:lib/hooks/useCurrentSession.ts | A:/history 路由页面（内含 AccuracyChart 组件） | S:导入导出直接用字面量键 cardo_summaries/cardo_sessions 读写 localStorage（绕过 storage 封装）；仅有 Summary 的旧数据会构造占位 Session 显示；无计时数据时准确率显示 '—'
+
+===D:/D_disk/Code/Focus/app/mobile/===
+page.tsx[AU7L]: F:手机副屏页：2.5 秒轮询同步当前轮次、整轮总用时展示、任意任务震动打卡、兜底任务与四步就绪指引 | R:code:app/api/session/current/route.ts, code:app/api/session/complete/route.ts, code:lib/hooks/useTimer.ts, code:lib/energy-tips.ts | A:/mobile 路由页面；handleComplete(taskId?) | S:桌面端为唯一数据源，手机只能完成任务不能编辑；打卡先触发 navigator.vibrate 再请求；服务端为内存态，重启后需桌面端重新推送才会恢复显示
+
+===D:/D_disk/Code/Focus/lib/===
+agent.ts[DA9L]: F:LLM Agent 领域层：目标拆解与对话微调（规划/执行双模式）、双协议端点构造、模型列表与连接测试、历史相似任务估时校准、六件套 Tooling 定义与代理请求 | R:code:lib/storage.ts, code:app/api/llm/proxy/route.ts, code:app/api/fs/tool/route.ts | A:decomposeGoal/refineTasks, fetchModels/testConnection, getLlmConfig/saveLlmConfig, similarity/findSimilarHistory/applyHistoryEstimates, chatEndpoint/modelsEndpoint/needsV1Hint/AGENT_TOOLS/parseDecomposeResult, ExecutionContext/SuggestedTask/LlmConfig 类型 | S:默认端点 http://localhost:3002/v1 与模型 gemini-3.8-flash-high 来自 env 回退；OpenAI 工具循环上限 30 轮；估时融合 0.4×预估+0.6×历史实际、取整 5 分钟下限 15；read_image 结果以 image_url 用户消息注入；中文按 2-gram 分词；对话返回 tasks 为全量替换且须原样保留 id
+energy-tips.ts[DU6M]: F:精力与注意力管理知识库：带证据等级与文献出处的 Tips 全集、Cardo 启动四步仪式清单 | R:code:app/components/EnergyWisdomCard.tsx, code:app/components/FocusPreflightModal.tsx, code:app/mobile/page.tsx | A:ENERGY_TIPS, CARDO_PREFLIGHT_STEPS, FOCUS_PREFLIGHT_STEPS（别名）, EnergyTip/CardoStep/FocusStep 类型 | S:ENERGY_TIPS 的 id 非连续（1,6,7,5,12…），数组顺序即展示顺序；FOCUS_PREFLIGHT_STEPS 是 CARDO_PREFLIGHT_STEPS 的兼容别名，两个导出名都要保留
+server-store.ts[CD6T]: F:服务端内存态会话与总结存储（globalThis 单例），供手机副屏读写 | R:code:app/api/session/current/route.ts, code:app/api/session/complete/route.ts | A:getServerSession/setServerSession/getServerSummaries/addServerSummary/setServerSummaries | S:全部存 globalThis.__focus_server_*（沿用 focus 前缀未改 cardo），进程重启即清空；仅供多端临时中继，绝非持久层
+storage.ts[PD8S]: F:浏览器 localStorage 封装：会话/总结/配置读写、旧 focus_* 键平滑迁移与任务字段补录 | R:code:lib/types.ts, code:lib/hooks/useCurrentSession.ts, code:app/history/page.tsx | A:saveSession/getSessions/getIncompleteSessions/getSession/deleteSession/updateSessionTaskField/setCurrentSession/getCurrentSessionId/getCurrentSession/saveSummary/getSummaries/deleteSummary/clearAllHistory/saveConfig/getConfig | S:读新键 cardo_* 缺失时回退旧 focus_* 键并回写；getConfig 首次调用生成并持久化 deviceId/accessKey；updateSessionTaskField 刻意不刷新 lastActiveAt 以免打乱历史排序
+types.ts[DD8T]: F:全局数据契约：任务/会话/总结/配置与执行期对话记忆的类型定义 | R:code:lib/storage.ts, code:lib/hooks/useCurrentSession.ts, code:lib/agent.ts, code:lib/server-store.ts | A:Task, ChatMessage, Session, SessionSummary, AppConfig | S:actualMinutes 仅手动填写、startedAt 为旧版逐任务自动计时的遗留字段不再写入；elapsedSeconds+lastResumedAt 是整轮总用时实时计算契约；accuracyRate 为装饰性指标须配合 timedTasks 判断展示
+
+===D:/D_disk/Code/Focus/lib/hooks/===
+useCurrentSession.ts[AB9L]: F:会话状态机 Hook：整轮总用时累计与冻结、任意顺序/批量完成与焦点续接、任务实时编辑与补录、对话记忆持久化、多端轮询采纳 | R:code:lib/storage.ts, code:lib/agent.ts, code:lib/types.ts, code:app/api/session/current/route.ts | A:useCurrentSession（createSession/startSession/resumeSession/pauseSession/resetSessionTimer/completeCurrentTask/completeTask/completeTasks/setFocusTask/updateTask/setTaskActualMinutes/deleteTask/moveTask/addTaskToSession/applyTasksUpdate/updateChatHistory/endSession）, getSessionElapsedSeconds | S:计时契约：elapsedSeconds 只在暂停/结束/全部完成/服务端完成时结算，lastResumedAt 为空即不累计；completeTasks 全部完成时冻结用时并生成 Summary；轮询仅在 executing/paused 且同步签名变化时采纳服务端；applyTasksUpdate 只替换未完成任务并尽量保留 id
+useTimer.ts[CG6T]: F:整轮总用时显示 Hook 与时长格式化工具 | R:code:app/components/ExecutionView.tsx, code:app/mobile/page.tsx, code:lib/types.ts | A:useElapsedTimer(baseSeconds,running,runningSince), formatDuration(seconds) | S:running=false 或 runningSince 缺失/非法时只显示 baseSeconds 且不启动 interval；超过 1 小时显示 hh:mm:ss
+
+===D:/D_disk/Code/Focus/public/===
+icon.svg[CU5T]: F:Cartesian 品牌图标：石色底 512×512 罗盘圆环+墨点焦点的极简 SVG | R:code:public/manifest.json | A:- | S:按 maskable 设计（图形居中留白）；manifest 以 sizes:any 引用
+manifest.json[FV5T]: F:PWA 清单：名称/描述/standalone 显示模式与 /mobile 启动页 | R:code:public/icon.svg, code:app/layout.tsx | A:name/short_name/description/start_url/display/background_color/theme_color/icons | S:start_url 指向 /mobile——PWA 安装后直接进入打卡页；icons 仅引用 /icon.svg（maskable）
+
+===D:/D_disk/Code/Focus/scripts/===
+capture-docs-screenshots.py[SV6S]: F:Playwright 文档截图脚本：注入虚构演示数据依次拍摄规划/执行/历史/移动端四图 | R:code:README.md, code:scripts/start-background.ps1 | A:main()；输出 docs/assets/cardo-{planning,execution,history,mobile}.png | S:需 3025 已构建服务与 Python playwright；先清 localStorage 再注入 mock；选择器写死页面文案，UI 文案改动即失效
+start-background.ps1[OW7T]: F:后台静默启动脚本：清理旧进程、必要时自动构建、隐藏窗口启动 3025 生产服务并记 PID | R:code:package.json, code:AGENTS.md | A:-Port(默认3025)/-Restart 参数；产物 .logs/cardo.log、.logs/cardo.err.log、.run/cardo.pid | S:无 .next 时自动 npm run build；-Restart 先杀端口进程再删 PID 文件；端口已监听则幂等跳过；按 AGENTS.md 须无头 Start-Process 调用
+test-chat.mjs[TQ5T]: F:LLM 联调诊断：直连 127.0.0.1:3002 测基础对话与单工具声明 | R:code:scripts/test-fast.mjs | A:test() | S:端点/模型硬编码 127.0.0.1:3002 与 gemini-3.8-flash-high；密钥读 TEST_API_KEY 默认占位；无断言仅打印
+test-direct-llm.mjs[TQ5S]: F:HTTP 事件级诊断：用原生 http 打印分块/end/close 全过程观察网关行为 | R:code:app/api/llm/proxy/route.ts | A:callNewApi(bodyObj), main() | S:其分块可完整 JSON.parse 即提前解析的策略后来被 /api/llm/proxy 采纳；端点模型同样硬编码
+test-fast.mjs[TQ5T]: F:速度诊断：打点测量 LLM 首轮响应耗时并验证单轮工具调用 | R:code:scripts/test-chat.mjs | A:main() | S:请求头带 Connection: close（与主代理策略一致）；端点模型硬编码、无断言
+test-proxy-tooling.mjs[TQ6S]: F:完整链路冒烟：经 /api/llm/proxy 两轮「LLM 工具调用→本地执行→回传」验证 | R:code:app/api/llm/proxy/route.ts, code:app/api/fs/tool/route.ts, code:scripts/test-tool-full.mjs | A:postJson(urlStr,data), main() | S:目标路径与 /history 需求文案写死源码；端点 3025/3002 与模型硬编码；无断言靠控制台判读
+test-tool-full.mjs[TQ6S]: F:多轮工具循环冒烟：最多 5 轮 LLM↔本地工具交互直至产出任务拆解 | R:code:app/api/llm/proxy/route.ts, code:app/api/fs/tool/route.ts, code:scripts/test-tooling.mjs | A:postJson, main() | S:工具结果按 keyFiles/totalLines/count 打摘要；路径场景写死；maxTurns=5 与产品内 30 轮循环不同
+test-tooling.mjs[TQ5S]: F:两轮工具链路冒烟（fetch 版）：打印 LLM 原始 JSON 与最终拆解 | R:code:app/api/llm/proxy/route.ts, code:app/api/fs/tool/route.ts, code:scripts/test-proxy-tooling.mjs | A:main() | S:与 test-proxy-tooling 同链路但用 fetch 且打印完整响应；端点与路径写死
+test-tools-suite.mjs[TQ7S]: F:六件套 Tooling 冒烟基准：逐一验证 inspect/list/read_file/read_image/search_files/find_by_name | R:code:app/api/fs/tool/route.ts, code:public/icon.svg, code:package.json | A:runSuite() | S:指向本机 3025 与写死的 D:\D_disk\Code\Focus；以 icon.svg 与 package.json 为只读样本；无断言靠打印判读

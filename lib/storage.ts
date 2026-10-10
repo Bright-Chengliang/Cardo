@@ -1,6 +1,6 @@
 // lib/storage.ts - localStorage 封装 (Cardo / 兼容历史 focus 数据)
 
-import { Session, SessionSummary, AppConfig } from './types';
+import { Session, SessionSummary, AppConfig, Task } from './types';
 
 const STORAGE_KEYS = {
   SESSIONS: 'cardo_sessions',
@@ -69,6 +69,27 @@ export function deleteSession(id: string): void {
   const sessions = getSessions().filter(s => s.id !== id);
   localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(sessions));
   deleteSummary(id);
+}
+
+// 更新会话内单个任务字段（历史页补录用时/标题等），不刷新 lastActiveAt
+export function updateSessionTaskField(
+  sessionId: string,
+  taskId: string,
+  patch: Partial<Pick<Task, 'actualMinutes' | 'title' | 'estimatedMinutes'>>
+): void {
+  if (typeof window === 'undefined') return;
+
+  const sessions = getSessions();
+  const index = sessions.findIndex(s => s.id === sessionId);
+  if (index === -1) return;
+  const session = sessions[index];
+  if (!session.tasks?.some(t => t.id === taskId)) return;
+
+  sessions[index] = {
+    ...session,
+    tasks: session.tasks.map(t => (t.id === taskId ? { ...t, ...patch } : t)),
+  };
+  localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(sessions));
 }
 
 // 当前会话

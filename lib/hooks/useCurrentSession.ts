@@ -1,17 +1,90 @@
-// lib/hooks/useCurrentSession.ts - 当前会话 Hook (支持跨设备多端实时同步)
+// lib/hooks/useCurrentSession.ts - 当前会话 Hook
+// 整轮总用时计时 · 任意顺序/批量完成子任务 · 执行中实时编辑 · Agent 对话记忆 · 多端实时同步
 
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Session, Task } from '../types';
-import { 
-  getCurrentSession, 
+import { Session, Task, ChatMessage } from '../types';
+import {
+  getCurrentSession,
   getSessions,
-  saveSession, 
+  saveSession,
   setCurrentSession as setCurrentSessionId,
   saveSummary
 } from '../storage';
+import { SuggestedTask } from '../agent';
 import { nanoid } from 'nanoid';
+
+/** 计算会话总专注秒数（暂停期间不增长，执行中实时累加） */
+export function getSessionElapsedSeconds(session: Session | null): number {
+  if (!session) return 0;
+  const base = Math.max(0, Math.floor(session.elapsedSeconds || 0));
+  if (session.status === 'executing' && session.lastResumedAt) {
+    const start = new Date(session.lastResumedAt).getTime();
+    if (Number.isFinite(start)) {
+      return base + Math.max(0, Math.floor((Date.now() - start) / 1000));
+    }
+  }
+  return base;
+}
+
+/** 重算焦点任务：保持原焦点（仍存在且未完成），否则聚焦第一个未完成任务 */
+function refocusSession(session: Session, preferredId?: string | null): Session {
+  const remaining = session.tasks.filter((t) => t.status !== 'completed');
+  let focus = preferredId !== undefined ? preferredId : session.currentTaskId;
+  if (!focus || !remaining.some((t) => t.id === focus)) {
+    focus = remaining[0]?.id ?? null;
+  }
+  return {
+    ...session,
+    currentTaskId: focus,
+    tasks: session.tasks.map((t) =>
+      t.status === 'completed' ? t : { ...t, status: t.id === focus ? 'in_progress' : 'pending' }
+    ),
+  };
+}
+
+/** 若全部子任务完成，冻结总用时并标记轮次结束 */
+function finalizeIfDone(session: Session): Session {
+  const allDone = session.tasks.length > 0 && session.tasks.every((t) => t.status === 'completed');
+  if (!allDone || session.status === 'completed') return session;
+  return {
+    ...session,
+    status: 'completed',
+    completedAt: new Date().toISOString(),
+    currentTaskId: null,
+    elapsedSeconds: getSessionElapsedSeconds(session),
+    lastResumedAt: undefined,
+  };
+}
+
+/** 生成并保存轮次总结 */
+function writeSummary(session: Session): void {
+  const completedTasks = session.tasks.filter((t) => t.status === 'completed');
+  const totalEstimated = session.tasks.reduce((sum, t) => sum + t.estimatedMinutes, 0);
+  const totalActual = Math.round(getSessionElapsedSeconds(session) / 60);
+
+  // 准确率为装饰性指标：仅统计手动填写过用时的任务
+  const timedTasks = completedTasks.filter(
+    (t) => typeof t.actualMinutes === 'number' && (t.actualMinutes || 0) > 0
+  );
+  const accurateTasks = timedTasks.filter(
+    (t) => Math.abs((t.actualMinutes || 0) - t.estimatedMinutes) <= t.estimatedMinutes * 0.2
+  );
+
+  saveSummary({
+    sessionId: session.id,
+    goal: session.goal,
+    totalTasks: session.tasks.length,
+    completedTasks: completedTasks.length,
+    totalEstimatedMinutes: totalEstimated,
+    totalActualMinutes: totalActual,
+    accuracyRate: timedTasks.length > 0 ? accurateTasks.length / timedTasks.length : 0,
+    timedTasks: timedTasks.length,
+    createdAt: session.createdAt,
+    completedAt: session.completedAt || new Date().toISOString(),
+  });
+}
 
 // 同步到服务端（供移动端访问）
 async function pushServerSession(s: Session | null) {
@@ -24,6 +97,12 @@ async function pushServerSession(s: Session | null) {
   } catch (e) {
     // 忽略离线同步失败
   }
+}
+
+// 服务端会话的任务/状态签名（用于检测多端变更）
+function sessionSyncSignature(s: Session | null): string {
+  if (!s) return 'null';
+  return `${s.id}#${s.status}#${s.currentTaskId}#${s.tasks.map((t) => `${t.id}:${t.status}`).join('|')}`;
 }
 
 export function useCurrentSession() {
@@ -41,9 +120,22 @@ export function useCurrentSession() {
     pushServerSession(current);
   }, []);
 
-  // 轮询服务端状态：当在执行中时，实时同步手机端的完成操作
+  // 统一提交：持久化 + 同步服务端 + 自动结算
+  const commit = useCallback((next: Session) => {
+    const wasCompleted = sessionRef.current?.status === 'completed';
+    const updated = finalizeIfDone(next);
+    saveSession(updated);
+    setSession(updated);
+    sessionRef.current = updated;
+    pushServerSession(updated);
+    if (updated.status === 'completed' && !wasCompleted) {
+      writeSummary(updated);
+    }
+  }, []);
+
+  // 轮询服务端状态：实时同步手机端的完成/暂停操作
   useEffect(() => {
-    if (!session || session.status !== 'executing') return;
+    if (!session || (session.status !== 'executing' && session.status !== 'paused')) return;
 
     const interval = setInterval(async () => {
       try {
@@ -51,12 +143,10 @@ export function useCurrentSession() {
         if (res.ok) {
           const data = await res.json();
           const serverS: Session | null = data.session;
-          if (serverS && serverS.id === sessionRef.current?.id) {
-            // 检查当前任务或状态是否发生变化
-            if (
-              serverS.currentTaskId !== sessionRef.current?.currentTaskId ||
-              serverS.status !== sessionRef.current?.status
-            ) {
+          const local = sessionRef.current;
+          if (serverS && serverS.id === local?.id) {
+            // 检查任务完成情况/焦点/状态是否发生变化（手机端操作）
+            if (sessionSyncSignature(serverS) !== sessionSyncSignature(local)) {
               saveSession(serverS);
               setSession(serverS);
               sessionRef.current = serverS;
@@ -71,7 +161,7 @@ export function useCurrentSession() {
     return () => clearInterval(interval);
   }, [session?.id, session?.status]);
 
-  // 创建新会话
+  // 创建新会话（规划阶段）
   const createSession = useCallback((goal: string, tasks: Task[], fallbackTask: string) => {
     const newSession: Session = {
       id: nanoid(),
@@ -81,136 +171,182 @@ export function useCurrentSession() {
       currentTaskId: null,
       status: 'planning',
       createdAt: new Date().toISOString(),
+      elapsedSeconds: 0,
+      chatHistory: [],
     };
-    
+
     saveSession(newSession);
     setCurrentSessionId(newSession.id);
     setSession(newSession);
+    sessionRef.current = newSession;
     pushServerSession(newSession);
-    
+
     return newSession;
   }, []);
 
   // 开始会话（可传入刚创建的会话，避免 state 异步导致读到旧值）
   const startSession = useCallback((target?: Session) => {
-    const current = target || session;
-    if (!current) return;
-    
-    const firstTask = current.tasks[0];
-    if (!firstTask) return;
+    const current = target || sessionRef.current;
+    if (!current || current.tasks.length === 0) return;
 
-    const updated: Session = {
+    const now = new Date().toISOString();
+    let updated: Session = {
       ...current,
       status: 'executing',
-      startedAt: new Date().toISOString(),
-      currentTaskId: firstTask.id,
-      tasks: current.tasks.map((t, i) => 
-        i === 0 
-          ? { ...t, status: 'in_progress', startedAt: new Date().toISOString() }
-          : t
-      ),
+      startedAt: current.startedAt || now,
+      completedAt: undefined,
+      elapsedSeconds: 0,
+      lastResumedAt: now,
+      currentTaskId: current.currentTaskId ?? current.tasks[0].id,
     };
+    updated = refocusSession(updated, updated.currentTaskId);
+    commit(updated);
+  }, [commit]);
 
-    saveSession(updated);
-    setSession(updated);
-    pushServerSession(updated);
-  }, [session]);
+  // 完成任意子任务（支持"顺手完成"多个；完成当前焦点任务自动续接下一个）
+  const completeTasks = useCallback((taskIds: string[]) => {
+    const current = sessionRef.current;
+    if (!current || current.status !== 'executing') return;
 
-  // 完成当前任务
-  const completeCurrentTask = useCallback(() => {
-    if (!session || !session.currentTaskId) return;
+    const idSet = new Set(taskIds.filter(Boolean));
+    if (idSet.size === 0) return;
 
-    const currentIndex = session.tasks.findIndex(t => t.id === session.currentTaskId);
-    if (currentIndex === -1) return;
-
-    const currentTask = session.tasks[currentIndex];
     const now = new Date().toISOString();
-    const actualMinutes = currentTask.startedAt 
-      ? Math.round((new Date(now).getTime() - new Date(currentTask.startedAt).getTime()) / 60000)
-      : 0;
-
-    // 更新当前任务为完成
-    const updatedTasks = [...session.tasks];
-    updatedTasks[currentIndex] = {
-      ...currentTask,
-      status: 'completed',
-      completedAt: now,
-      actualMinutes,
-    };
-
-    // 找到下一个待完成任务
-    const nextTask = updatedTasks.find(t => t.status === 'pending');
-    
-    const updated: Session = {
-      ...session,
-      tasks: updatedTasks.map(t => 
-        t.id === nextTask?.id 
-          ? { ...t, status: 'in_progress', startedAt: now }
+    let updated: Session = {
+      ...current,
+      tasks: current.tasks.map(t =>
+        idSet.has(t.id) && t.status !== 'completed'
+          ? { ...t, status: 'completed', completedAt: now }
           : t
       ),
-      currentTaskId: nextTask?.id || null,
-      status: nextTask ? 'executing' : 'completed',
-      completedAt: nextTask ? undefined : now,
     };
+    updated = refocusSession(updated);
+    commit(updated);
+  }, [commit]);
 
-    saveSession(updated);
-    setSession(updated);
-    pushServerSession(updated);
+  const completeCurrentTask = useCallback(() => {
+    const current = sessionRef.current;
+    if (!current?.currentTaskId) return;
+    completeTasks([current.currentTaskId]);
+  }, [completeTasks]);
 
-    // 如果全部完成，生成总结
-    if (!nextTask) {
-      generateSummary(updated);
-    }
-  }, [session]);
+  const completeTask = useCallback((taskId: string) => {
+    completeTasks([taskId]);
+  }, [completeTasks]);
+
+  // 切换当前聚焦任务
+  const setFocusTask = useCallback((taskId: string) => {
+    const current = sessionRef.current;
+    if (!current || current.status !== 'executing') return;
+    if (current.tasks.some(t => t.id === taskId && t.status === 'completed')) return;
+    commit(refocusSession(current, taskId));
+  }, [commit]);
+
+  // 执行中实时编辑任务
+  const updateTask = useCallback((taskId: string, patch: { title?: string; estimatedMinutes?: number }) => {
+    const current = sessionRef.current;
+    if (!current) return;
+    commit({
+      ...current,
+      tasks: current.tasks.map(t => {
+        if (t.id !== taskId) return t;
+        const next = { ...t };
+        if (typeof patch.title === 'string') next.title = patch.title;
+        if (typeof patch.estimatedMinutes === 'number' && Number.isFinite(patch.estimatedMinutes)) {
+          next.estimatedMinutes = Math.max(1, Math.min(600, Math.round(patch.estimatedMinutes)));
+        }
+        return next;
+      }),
+    });
+  }, [commit]);
+
+  // 手动填写/修正单个子任务的用时（分钟，null 表示清除）
+  const setTaskActualMinutes = useCallback((taskId: string, minutes: number | null) => {
+    const current = sessionRef.current;
+    if (!current) return;
+    commit({
+      ...current,
+      tasks: current.tasks.map(t => {
+        if (t.id !== taskId) return t;
+        if (minutes === null || !Number.isFinite(minutes)) {
+          const { actualMinutes, ...rest } = t;
+          return rest;
+        }
+        return { ...t, actualMinutes: Math.max(0, Math.round(minutes)) };
+      }),
+    });
+  }, [commit]);
+
+  // 删除任务
+  const deleteTask = useCallback((taskId: string) => {
+    const current = sessionRef.current;
+    if (!current) return;
+    const tasks = current.tasks.filter(t => t.id !== taskId);
+    if (tasks.length === current.tasks.length) return;
+    commit(refocusSession({ ...current, tasks }));
+  }, [commit]);
+
+  // 调整未完成任务顺序（在未完成任务列表内上移/下移）
+  const moveTask = useCallback((taskId: string, direction: 'up' | 'down') => {
+    const current = sessionRef.current;
+    if (!current) return;
+
+    const remaining = current.tasks.filter(t => t.status !== 'completed');
+    const idx = remaining.findIndex(t => t.id === taskId);
+    if (idx === -1) return;
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= remaining.length) return;
+
+    const other = remaining[targetIdx];
+    const arr = [...current.tasks];
+    const a = arr.findIndex(t => t.id === taskId);
+    const b = arr.findIndex(t => t.id === other.id);
+    [arr[a], arr[b]] = [arr[b], arr[a]];
+    commit({ ...current, tasks: arr });
+  }, [commit]);
 
   // 执行中动态插入临时子任务
   const addTaskToSession = useCallback((title: string, estimatedMinutes: number) => {
-    if (!session || session.status !== 'executing') return;
+    const current = sessionRef.current;
+    if (!current || current.status !== 'executing') return;
     const newTask: Task = {
       id: nanoid(),
       title: title.trim(),
       estimatedMinutes: Math.max(1, estimatedMinutes),
       status: 'pending',
     };
-    const updated: Session = {
-      ...session,
-      tasks: [...session.tasks, newTask],
-    };
-    saveSession(updated);
-    setSession(updated);
-    pushServerSession(updated);
-  }, [session]);
+    commit({ ...current, tasks: [...current.tasks, newTask] });
+  }, [commit]);
 
-  // 生成会话总结
-  const generateSummary = useCallback((completedSession: Session) => {
-    const completedTasks = completedSession.tasks.filter(t => t.status === 'completed');
-    const totalEstimated = completedSession.tasks.reduce((sum, t) => sum + t.estimatedMinutes, 0);
-    const totalActual = completedTasks.reduce((sum, t) => sum + (t.actualMinutes || 0), 0);
-    
-    // 计算准确率：实际用时在预估的 ±20% 以内算准确
-    const accurateTasks = completedTasks.filter(t => {
-      const actual = t.actualMinutes || 0;
-      const estimated = t.estimatedMinutes;
-      const diff = Math.abs(actual - estimated);
-      return diff <= estimated * 0.2;
-    });
-    
-    const accuracyRate = completedTasks.length > 0 
-      ? accurateTasks.length / completedTasks.length 
-      : 0;
+  // 应用 Agent 对话返回的待办清单（保留未修改任务的 id，已完成任务不受影响）
+  const applyTasksUpdate = useCallback((next: SuggestedTask[]) => {
+    const current = sessionRef.current;
+    if (!current) return;
 
-    saveSummary({
-      sessionId: completedSession.id,
-      goal: completedSession.goal,
-      totalTasks: completedSession.tasks.length,
-      completedTasks: completedTasks.length,
-      totalEstimatedMinutes: totalEstimated,
-      totalActualMinutes: totalActual,
-      accuracyRate,
-      createdAt: completedSession.createdAt,
-      completedAt: completedSession.completedAt || new Date().toISOString(),
-    });
-  }, []);
+    const completed = current.tasks.filter(t => t.status === 'completed');
+    const oldRemaining = current.tasks.filter(t => t.status !== 'completed');
+
+    const newTasks: Task[] = next
+      .map(s => {
+        const title = String(s.title || '').trim();
+        if (!title) return null;
+        const estimatedMinutes = Math.max(1, Math.min(600, Math.round(Number(s.estimatedMinutes) || 30)));
+        const existing = s.id ? oldRemaining.find(o => o.id === s.id) : undefined;
+        if (existing) return { ...existing, title, estimatedMinutes };
+        return { id: nanoid(), title, estimatedMinutes, status: 'pending' as const };
+      })
+      .filter((t): t is Task => t !== null);
+
+    const updated: Session = { ...current, tasks: [...completed, ...newTasks] };
+    commit(refocusSession(updated));
+  }, [commit]);
+
+  // 持久化执行期 Agent 对话记忆
+  const updateChatHistory = useCallback((messages: ChatMessage[]) => {
+    const current = sessionRef.current;
+    if (!current) return;
+    commit({ ...current, chatHistory: messages });
+  }, [commit]);
 
   // 读档/恢复历史或中断的会话
   const resumeSession = useCallback((sessionOrId: Session | string) => {
@@ -224,79 +360,70 @@ export function useCurrentSession() {
 
     if (!target) return;
 
-    // 确定当前应该聚焦的任务（优先当前进行中任务，其次首个待完成任务）
-    let activeTaskId = target.currentTaskId;
-    const pendingTask = target.tasks.find(t => t.status === 'in_progress') || target.tasks.find(t => t.status === 'pending');
-    if (!activeTaskId || !target.tasks.some(t => t.id === activeTaskId && t.status !== 'completed')) {
-      activeTaskId = pendingTask ? pendingTask.id : null;
+    const hasRemaining = target.tasks.some(t => t.status !== 'completed');
+    let updated = refocusSession(target);
+    if (hasRemaining) {
+      updated = {
+        ...updated,
+        status: 'executing',
+        completedAt: undefined,
+        lastResumedAt: new Date().toISOString(),
+      };
     }
 
-    const now = new Date().toISOString();
-    const updated: Session = {
-      ...target,
-      status: activeTaskId ? 'executing' : 'completed',
-      currentTaskId: activeTaskId,
-      lastActiveAt: now,
-      tasks: target.tasks.map(t => {
-        if (t.id === activeTaskId && t.status !== 'completed') {
-          return { ...t, status: 'in_progress', startedAt: t.startedAt || now };
-        }
-        return t;
-      }),
-    };
-
-    saveSession(updated);
     setCurrentSessionId(updated.id);
-    setSession(updated);
-    pushServerSession(updated);
+    commit(updated);
     return updated;
-  }, []);
+  }, [commit]);
 
-  // 暂停当前会话（暂存读档，不删除会话）
+  // 暂停当前会话（暂存读档，不删除会话；总用时冻结）
   const pauseSession = useCallback(() => {
-    if (!session) return;
+    const current = sessionRef.current;
+    if (!current) return;
     const now = new Date().toISOString();
     const updated: Session = {
-      ...session,
+      ...current,
       status: 'paused',
       lastActiveAt: now,
+      elapsedSeconds: getSessionElapsedSeconds(current),
+      lastResumedAt: undefined,
     };
     saveSession(updated);
     setCurrentSessionId(null);
     setSession(null);
+    sessionRef.current = null;
     pushServerSession(null);
-  }, [session]);
+  }, []);
 
   // 结束当前会话（清除）
   const endSession = useCallback(() => {
-    if (session) {
-      // 确保会话最后状态被存盘
-      saveSession({ ...session, lastActiveAt: new Date().toISOString() });
+    const current = sessionRef.current;
+    if (current) {
+      saveSession({
+        ...current,
+        elapsedSeconds: getSessionElapsedSeconds(current),
+        lastResumedAt: undefined,
+        lastActiveAt: new Date().toISOString(),
+      });
     }
     setCurrentSessionId(null);
     setSession(null);
+    sessionRef.current = null;
     pushServerSession(null);
-  }, [session]);
+  }, []);
 
-  // 重置当前任务计时器（清零已耗时间）
-  const resetCurrentTaskTimer = useCallback(() => {
-    if (!session) return;
+  // 重置整轮总计时（清零已累计时间）
+  const resetSessionTimer = useCallback(() => {
+    const current = sessionRef.current;
+    if (!current) return;
     const now = new Date().toISOString();
-    const activeTaskId = session.currentTaskId;
-    const updated: Session = {
-      ...session,
-      startedAt: now,
+    commit({
+      ...current,
+      elapsedSeconds: 0,
+      lastResumedAt: current.status === 'executing' ? now : undefined,
       lastActiveAt: now,
-      tasks: session.tasks.map(t =>
-        t.id === activeTaskId
-          ? { ...t, startedAt: now, actualMinutes: 0 }
-          : t
-      ),
-    };
-    saveSession(updated);
-    setSession(updated);
-    pushServerSession(updated);
-  }, [session]);
+    });
+  }, [commit]);
 
   return {
     session,
@@ -305,9 +432,18 @@ export function useCurrentSession() {
     startSession,
     resumeSession,
     pauseSession,
-    resetCurrentTaskTimer,
+    resetSessionTimer,
     completeCurrentTask,
+    completeTask,
+    completeTasks,
+    setFocusTask,
+    updateTask,
+    setTaskActualMinutes,
+    deleteTask,
+    moveTask,
     addTaskToSession,
+    applyTasksUpdate,
+    updateChatHistory,
     endSession,
   };
 }
